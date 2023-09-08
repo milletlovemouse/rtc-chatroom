@@ -1,0 +1,25 @@
+{
+  "name": "tool-library",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons-vue": "^6.1.0",
+    "ant-design-vue": "^4.0.2",
+    "sass": "^1.66.1",
+    "sass-loader": "^13.3.2",
+    "vue": "^3.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.9",
+    "@vitejs/plugin-vue": "^4.2.3",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "vue-tsc": "^1.8.5"
+  }
+}
