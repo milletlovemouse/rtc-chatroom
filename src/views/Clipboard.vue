@@ -20,7 +20,7 @@
 </template>
 <script lang="ts" setup>
 import { reactive } from 'vue';
-import { fileToBlob } from '/@/utils/fileUtils';
+import { fileToBlob, fileAndBlobToBase64 } from '/@/utils/fileUtils';
 import { 
   ClipboardItemTypes,
   ClipboardList,
@@ -39,6 +39,8 @@ const selectFileOption = {
 async function handleBatchImport(files: FileList, err: Error, inputFiles: FileList) {
   const file = files[0];
   const blob = await fileToBlob(file);
+  // console.log(await fileAndBlobToBase64(blob));
+  
   writeClipImg(blob)
 }
 

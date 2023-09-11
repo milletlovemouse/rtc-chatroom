@@ -1,39 +1,15 @@
-import { useError, useSuccess } from "../message";
-import MediaDevices from "/@/utils/MediaDevices/mediaDevices";
-
-const Message = {
-  USER_PERMISSION_DENIED: "用户未允许浏览器访问摄像头和麦克风",
-  DISPLAY_PERMISSION_DENIED: "用户已取消屏幕共享",
-  DISPLAY_SUCCESS: "已开启屏幕共享",
-  USER_SUCCESS: "用户已加入会议",
-}
-
-type MessageKeyMap = {
-  [x in keyof typeof Message]: x
-}
-
-const MessageKeyMap: MessageKeyMap = {
-  USER_PERMISSION_DENIED: "USER_PERMISSION_DENIED",
-  DISPLAY_PERMISSION_DENIED: "DISPLAY_PERMISSION_DENIED",
-  DISPLAY_SUCCESS: "DISPLAY_SUCCESS",
-  USER_SUCCESS: "USER_SUCCESS",
-}
-
-const format = (description: string) => description.split(' ').join('_').toUpperCase()
-export const onError = useError(Message, format)
-export const onSuccess = useSuccess(Message, format)
+import { MessageEvent, MessageKeyMap } from "./rtc-client"
+import MediaDevices from "../MediaDevices/mediaDevices"
 
 export default class WebRTC {
-  mediaDevices: MediaDevices
-  localStream: MediaStream
-  localDisplayStream: MediaStream
-  remoteStream: MediaStream
+  configuration: RTCConfiguration
   peerConnection: RTCPeerConnection
+  dataChannel: RTCDataChannel
   private localRTCRtpSenderList: RTCRtpSender[]
   private localDisplayRTCRtpSenderList: RTCRtpSender[]
 
-  constructor(constraints: MediaStreamConstraints) {
-    this.mediaDevices = new MediaDevices(constraints);
+  constructor(configuration: RTCConfiguration) {
+    this.configuration = configuration
     this.init()
   }
 
@@ -44,6 +20,11 @@ export default class WebRTC {
   createPeerConnection() {
     // 创建 PeerConnection
     this.peerConnection = new RTCPeerConnection();
+    this.peerConnection.setConfiguration(this.configuration);
+  }
+
+  on(eventName: string, callback: (...args: any[]) => void) {
+    this.peerConnection.addEventListener(eventName, callback)
   }
 
   addTrack(track: MediaStreamTrack | MediaStreamTrack[], stream: MediaStream): RTCRtpSender[] {
@@ -58,55 +39,84 @@ export default class WebRTC {
     senderList.forEach(sender => this.peerConnection.removeTrack(sender))
   }
 
-  async showLocalStream(video: HTMLVideoElement) {
+  addTransceiver(track: MediaStreamTrack | MediaStreamTrack[], stream: MediaStream): RTCRtpTransceiver[] {
+    track = Array.isArray(track) ? track : [track]
+    return track.map(track => this.peerConnection.addTransceiver(track, { streams: [ stream ] }))
+  }
+
+  async addLocalStream(mediaDevices: MediaDevices) {
     try {
-      // 显示本地媒体流
-      this.localStream = await this.mediaDevices.getUserMedia()
-      const audioTracks = this.localStream.getAudioTracks()
-      const videoTracks = this.localStream.getVideoTracks()
+      // 添加本地媒体流
+      const localStream = await mediaDevices.getUserMedia()
+      const audioTracks = localStream.getAudioTracks()
+      const videoTracks = localStream.getVideoTracks()
       // 移除上次添加的本地流
       this.removeTrack(this.localRTCRtpSenderList)
-      // 添加本次本第流
-      this.localRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], this.localStream)
-      // 移除自己的音轨
-      this.mediaDevices.removeTrack(audioTracks, this.localStream)
-      video.srcObject = this.localStream
-      video.play()
-      this.onSuccess(MessageKeyMap.USER_SUCCESS)
+      
+      // 添加本次本地流
+      // this.localRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], localStream)
+      this.localRTCRtpSenderList = this.addTrack([...videoTracks], localStream)
+
+      console.info(MessageKeyMap.USER_SUCCESS)
     } catch (error) {
       const message = 'USER_' + error.message.toUpperCase()
-      this.onError(message)
+      console.error(message)
+    }
+  }
+
+  async removeLocalStream() {
+    try {
+      // 移除上次添加的本地流
+      this.removeTrack(this.localRTCRtpSenderList)
+      // 隐藏本地媒体流
+      console.info(MessageKeyMap.USER_SUCCESS)
+    } catch (error) {
+      console.error(error)
     }
   }
   
-  async shareDisplayMedia(video: HTMLVideoElement) {
+  async shareDisplayMedia(mediaDevices: MediaDevices) {
     try {
       // 共享屏幕
-      this.localDisplayStream = await this.mediaDevices.getDisplayMedia()
-      const audioTracks = this.localDisplayStream.getAudioTracks()
-      const videoTracks = this.localDisplayStream.getVideoTracks()
+      const localDisplayStream = await mediaDevices.getDisplayMedia()
+      const audioTracks = localDisplayStream.getAudioTracks()
+      const videoTracks = localDisplayStream.getVideoTracks()
       // 移除上次添加的本地流
       this.removeTrack(this.localDisplayRTCRtpSenderList)
       // 添加本次本第流
-      this.localDisplayRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], this.localDisplayStream)
-      // 移除自己的音轨
-      this.mediaDevices.removeTrack(audioTracks, this.localDisplayStream)
-      video.srcObject = this.localDisplayStream
-      video.play()
-      this.onSuccess(MessageKeyMap.DISPLAY_SUCCESS)
+      this.localDisplayRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
+      console.info(MessageKeyMap.DISPLAY_SUCCESS)
     } catch (error) {
       const message = 'DISPLAY_' + error.message.toUpperCase()
-      this.onError(message)
+      console.error(message)
     }
   }
 
-  private onError(message: string) {
-    onError(message)
-    console.error(message);
+  async cancelShareDisplayMedia() {
+    try {
+      // 取消共享屏幕
+      // 移除上次添加的本地流
+      this.removeTrack(this.localDisplayRTCRtpSenderList)
+      console.info(MessageKeyMap.DISPLAY_SUCCESS)
+    } catch (error) {
+      const message = 'DISPLAY_' + error.message.toUpperCase()
+      console.error(message)
+    }
   }
 
-  private onSuccess(message: string) {
-    onSuccess(message)
-    console.log(message);
+  async createAnswer(options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {
+    return this.peerConnection.createAnswer(options)
+  }
+
+  async createOffer(options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {
+    return this.peerConnection.createOffer(options)
+  }
+
+  createDataChannel(label: string, option: RTCDataChannelInit) {
+    this.dataChannel = this.peerConnection.createDataChannel(label, option);
+  }
+
+  close() {
+    this.peerConnection.close()
   }
 }
