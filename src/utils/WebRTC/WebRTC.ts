@@ -1,10 +1,12 @@
 import { MessageEvent, MessageKeyMap } from "./rtc-client"
 import MediaDevices from "../MediaDevices/mediaDevices"
+import CustomEvent, { Callback } from "../event"
 
 export default class WebRTC {
   configuration: RTCConfiguration
   peerConnection: RTCPeerConnection
   dataChannel: RTCDataChannel
+  eventTaget: CustomEvent
   private localRTCRtpSenderList: RTCRtpSender[]
   private localDisplayRTCRtpSenderList: RTCRtpSender[]
 
@@ -20,11 +22,20 @@ export default class WebRTC {
   createPeerConnection() {
     // 创建 PeerConnection
     this.peerConnection = new RTCPeerConnection();
+    this.eventTaget = new CustomEvent(this.peerConnection)
     this.peerConnection.setConfiguration(this.configuration);
   }
 
-  on(eventName: string, callback: (...args: any[]) => void) {
-    this.peerConnection.addEventListener(eventName, callback)
+  on(eventName: string, callback: Callback) {
+    this.eventTaget.on(eventName, callback)
+  }
+
+  off(eventName: string, callback?: Callback) {
+    this.eventTaget.off(eventName, callback)
+  }
+
+  offAll() {
+    this.eventTaget.offAll()
   }
 
   addTrack(track: MediaStreamTrack | MediaStreamTrack[], stream: MediaStream): RTCRtpSender[] {
@@ -52,11 +63,10 @@ export default class WebRTC {
       const videoTracks = localStream.getVideoTracks()
       // 移除上次添加的本地流
       this.removeTrack(this.localRTCRtpSenderList)
-      
       // 添加本次本地流
-      // this.localRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], localStream)
-      this.localRTCRtpSenderList = this.addTrack([...videoTracks], localStream)
-
+      this.localRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], localStream)
+      console.log(audioTracks[0]?.enabled); // 应该为 false
+      console.log(audioTracks[0]?.readyState); // 应该是 "ended"
       console.info(MessageKeyMap.USER_SUCCESS)
     } catch (error) {
       const message = 'USER_' + error.message.toUpperCase()
@@ -117,6 +127,13 @@ export default class WebRTC {
   }
 
   close() {
+    this.eventTaget.close()
+    this.removeLocalStream()
+    this.cancelShareDisplayMedia()
     this.peerConnection.close()
+    this.peerConnection = null
+    this.dataChannel = null
+    this.localRTCRtpSenderList = null
+    this.localDisplayRTCRtpSenderList = null
   }
 }

@@ -41,6 +41,7 @@ export enum MessageEvent {
   ANSWER = "answer",
   GET_OFFER = "getOffer",
   ICE_CANDIDATE = "icecandidate",
+  EXIT = "exit",
 }
 
 export type Options = {
@@ -48,7 +49,9 @@ export type Options = {
   constraints: MediaStreamConstraints
 }
 
+export type WebRTCType = "user" | "display"
 export type WebRTCItem = {
+  type?: WebRTCType,
   webrtcId: string,
   webrtc: WebRTC,
   merberId?: string,
@@ -65,12 +68,17 @@ export default class RTCClient extends SocketClient {
   constraints: MediaStreamConstraints
   mediaDevices: MediaDevices;
   webrtcMap: WebRTCMap = new Map();
+  private _displayState: boolean = false;
   constructor(options: Options) {
     super({ host, port});
     this.constraints = options.constraints;
     this.configuration = options.configuration;
     this.mediaDevices = new MediaDevices(this.constraints);
     this.init()
+  }
+
+  get displayState() {
+    return this._displayState
   }
 
   init() {
@@ -82,18 +90,21 @@ export default class RTCClient extends SocketClient {
     });
   }
 
-  async createWebRTC(): Promise<string> {
+  async createWebRTC(type?: WebRTCType): Promise<string> {
     const webrtc = new WebRTC(this.configuration)
     const webrtcId = crypto.randomUUID()
-    const webrtcItem = {
+    const webrtcItem: WebRTCItem = {
       webrtcId,
-      webrtc
+      webrtc,
+      type
     }
     this.webrtcMap.set(webrtcId, webrtcItem)
-    await webrtc.addLocalStream(this.mediaDevices)
+    if (type === 'user') {
+      await webrtc.addLocalStream(this.mediaDevices)
+    } else if (type === 'display') {
+      await webrtc.shareDisplayMedia(this.mediaDevices)
+    }
     this.bindWebRTCEvent(webrtcItem)
-    // console.log('this.webrtcMap', Array.from(this.webrtcMap));
-    // emitter.emit(MittEventName.WEBRTC_MAP_CHANGE, this.webrtcMap)
     return webrtcId
   }
 
@@ -114,6 +125,7 @@ export default class RTCClient extends SocketClient {
     this.onMessage(MessageEvent.ANSWER, this.answerMessage.bind(this))
     this.onMessage(MessageEvent.GET_OFFER, this.getOfferMessage.bind(this))
     this.onMessage(MessageEvent.ICE_CANDIDATE, this.icecandidateMessage.bind(this))
+    this.onMessage(MessageEvent.EXIT, this.exitMessage.bind(this))
   }
 
   bindWebRTCEvent(webrtcItem: WebRTCItem) {
@@ -121,16 +133,61 @@ export default class RTCClient extends SocketClient {
     webrtcItem.webrtc.on('track', this.ontrack.bind(this, webrtcItem))
   }
 
-  private async getOfferMessage(memberInfo: {id: string}) {
+  bindDisplayMediaDevicesEvent() {
+    this.mediaDevices.displayStream_on('ended', this.displayStreamEnded.bind(this))
+  }
+
+  private displayStreamEnded(event: Event) {
+    this._displayState = false
+    console.log('displayStreamEnded', event);
+  }
+
+  private async createDisplayWebRTC(merberId: string) {
     try {
-      const merberId = memberInfo.id
-      const webrtcId = await this.createWebRTC()
+      const type = 'display'
+      const webrtcId = await this.createWebRTC(type)
+
+      const displayWebrtcItem = this.webrtcMap.get(webrtcId)
+      const webrtc = displayWebrtcItem.webrtc
+      const offer = await webrtc.peerConnection.createOffer()
+      await webrtc.peerConnection.setLocalDescription(offer)
+      this.sendOfferMessage({ webrtcId, merberId, offer, type })
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  public async shareDisplayMedia() {
+    const webrtcList = Array.from(this.webrtcMap.keys()).map(id => this.webrtcMap.get(id))
+    const isExistDisplay = webrtcList.some(item => item.type === 'display')
+    if (isExistDisplay) {
+      console.log('存在共享屏幕的成员')
+      return
+    }
+    // 过滤共享屏幕的非成员类型 为后期经过配置决定是否可存在多屏幕共享做准备
+    await Promise.all(webrtcList.filter(item => item.type !== 'display').map(async webrtcItem => {
+      await this.createDisplayWebRTC(webrtcItem.merberId)
+    }))
+    const stream = await this.getDisplayStream()
+    this.bindDisplayMediaDevicesEvent()
+    this._displayState = true
+    return stream
+  }
+
+  private async getOfferMessage(memberInfo: {merberId: string}) {
+    if (this._displayState) {
+      this.createDisplayWebRTC(memberInfo.merberId)
+    }
+    try {
+      const type = 'user'
+      const merberId = memberInfo.merberId
+      const webrtcId = await this.createWebRTC(type)
       const webrtcItem = this.webrtcMap.get(webrtcId)
       const webrtc = webrtcItem.webrtc
       const offer = await webrtc.peerConnection.createOffer()
       await webrtc.peerConnection.setLocalDescription(offer)
       // console.log('signalingState', webrtc.peerConnection.signalingState)
-      this.sendOfferMessage({ webrtcId, merberId, offer })
+      this.sendOfferMessage({ webrtcId, merberId, offer, type })
     } catch (error) {
       console.error(error)
     }
@@ -139,12 +196,14 @@ export default class RTCClient extends SocketClient {
   private async offerMessage(data: {
     connectorWebrtcId: string,
     merberId: string,
-    offer: RTCSessionDescriptionInit
+    offer: RTCSessionDescriptionInit,
+    type?: WebRTCType
   }) {
     try {
-      const { connectorWebrtcId, merberId } = data
+      const { connectorWebrtcId, merberId, type } = data
+      const createType = type === 'user' ? 'user' : undefined
       const offer = new RTCSessionDescription(data.offer)
-      const webrtcId = await this.createWebRTC()
+      const webrtcId = await this.createWebRTC(createType)
       const webrtcItem = this.webrtcMap.get(webrtcId)
       webrtcItem.merberId = merberId // 记录对方的id
       webrtcItem.connectorWebrtcId = connectorWebrtcId // 记录对方的webrtcId
@@ -202,7 +261,7 @@ export default class RTCClient extends SocketClient {
   private ontrack(webrtcItem: WebRTCItem, event: RTCTrackEvent) {
     const remoteStream = event.streams[0]
     webrtcItem.remoteStream = remoteStream
-    emitter.emit(MittEventName.WEBRTC_MAP_CHANGE, this.webrtcMap)
+    this[MittEventName.WEBRTC_MAP_CHANGE]()
   }
 
   private icecandidateMessage(data: {
@@ -218,6 +277,11 @@ export default class RTCClient extends SocketClient {
     webrtcItem.webrtc.peerConnection.addIceCandidate(candidate)
   }
 
+  private exitMessage(data: { webrtcId: string }) {
+    console.log('exitMessage', data)
+    this.closeWebRTCbyId(data.webrtcId)
+  }
+
   private sendIcecandidateMessage(data: {
     connectorWebrtcId: string,
     merberId: string,
@@ -229,7 +293,8 @@ export default class RTCClient extends SocketClient {
   private async sendOfferMessage(data: {
     webrtcId: string,
     merberId: string,
-    offer: RTCSessionDescriptionInit
+    offer: RTCSessionDescriptionInit,
+    type?: WebRTCType
   }) {
     this.sendMessage(MessageEvent.OFFER, data)
   }
@@ -243,17 +308,61 @@ export default class RTCClient extends SocketClient {
     this.sendMessage(MessageEvent.ANSWER, data)
   }
 
+  private sendExit() {
+    const ids = Array.from(this.webrtcMap.keys())
+    if (!ids.length) return
+    const snedMessage = ids.map(id => {
+      const webrtcItem = this.webrtcMap.get(id)
+      const { connectorWebrtcId, merberId } = webrtcItem
+      return {
+        connectorWebrtcId,
+        merberId
+      }
+    })
+    this.sendMessage(MessageEvent.EXIT, snedMessage)
+  }
+
   async getLocalStream() {
     try {
-      // 添加本地媒体流
+      // 获取本地媒体流
       const localStream = await this.mediaDevices.getUserMedia()
       const audioTracks = localStream.getAudioTracks()
-      localStream.removeTrack(audioTracks[0])
+      // 暂时移除音频轨道
+      // this.mediaDevices.removeTrack(audioTracks, localStream)
+      // await this.mediaDevices.stop(audioTracks[0]?.id)
       return localStream
     } catch (error) {
-      const message = 'USER_' + error.message.toUpperCase()
+      const message = error.message.toUpperCase()
       console.error(message)
     }
+  }
+
+  async getDisplayStream() {
+    try {
+      // 获取本地屏幕媒体流
+      const displayStream = await this.mediaDevices.getDisplayMedia()
+      const audioTracks = displayStream.getAudioTracks()
+      // 暂时移除音频轨道
+      // this.mediaDevices.removeTrack(audioTracks, displayStream)
+      // await this.mediaDevices.stop(audioTracks[0]?.id)
+      return displayStream
+    } catch (error) {
+      const message = error.message.toUpperCase()
+      console.error(message)
+    }
+  }
+
+  // 防抖通知
+  private timer: NodeJS.Timeout;
+  private [MittEventName.WEBRTC_MAP_CHANGE]() {
+    if (this.timer) {
+      clearTimeout(this.timer)
+    }
+    this.timer = setTimeout(() => {
+      emitter.emit(MittEventName.WEBRTC_MAP_CHANGE, this.webrtcMap)
+      clearTimeout(this.timer)
+      this.timer = null
+    }, 200)
   }
 
   closeWebRTCbyId(webrtcId: string) {
@@ -262,32 +371,20 @@ export default class RTCClient extends SocketClient {
       webrtcItem.webrtc.close()
       this.webrtcMap.delete(webrtcId)
     }
+    this[MittEventName.WEBRTC_MAP_CHANGE]()
   }
 
   closeAllWebRTC() {
-    [...this.webrtcMap.keys()].forEach(key => {
-      this.webrtcMap.get(key).webrtc.close()
-      this.webrtcMap.delete(key)
+    Array.from(this.webrtcMap.keys()).forEach(webrtcId => {
+      this.closeWebRTCbyId(webrtcId)
     })
   }
 
   close() {
-    this.socket.close();
+    this.sendExit()
     this.closeAllWebRTC()
+    this.mediaDevices.close()
+    this.socket.close();
     emitter.all.clear()
   }
-  // 获取当前用户信息
-  // getUserInfo(): Promise<any> {
-  //   return this.sendRequest("getUserInfo");
-  // }
-
-  // // 获取房间信息
-  // getRoomInfo(): Promise<any> {
-  //   return this.sendRequest("getRoomInfo");
-  // }
-
-  // 获取房间成员信息
-  // getRoomMemberInfo(): Promise<any> {
-  //   return this.sendMessage("getRoomMemberInfo");
-  // }
 }

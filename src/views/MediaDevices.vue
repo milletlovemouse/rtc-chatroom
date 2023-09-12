@@ -28,15 +28,17 @@
     </a-space>
     &nbsp;
     <a-button @click="shareDisplayMedia" type="primary">共享屏幕</a-button>
+    &nbsp;
+    <a-button @click="exit" type="primary">退出房间</a-button>
     <a-card title="Video" :bordered="false">
-      <video ref="video"></video>
-      <!-- <video ref="displayVideo"></video> -->
+      <video v-show="video" ref="video"></video>
+      <video v-show="displayStream" ref="displayVideo"></video>
       <video v-for="webrtcItem in webrtcList" :key="webrtcItem.id" ref="videoList"></video>
     </a-card>
   </div>
 </template>
 <script lang="ts" setup>
-import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, onUnmounted, computed, Ref, shallowReactive } from 'vue';
+import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, onUnmounted, computed, Ref, shallowReactive, onBeforeUnmount } from 'vue';
 import { AudioFilled, CameraFilled, AudioOutlined, AudioMutedOutlined } from '@ant-design/icons-vue';
 import { Icon } from '@vicons/utils'
 import { Video48Regular, VideoOff48Regular, Video48Filled } from '@vicons/fluent';
@@ -69,7 +71,7 @@ const cameraInfo = reactive<MediaTrackConstraints>({
   deviceId: ''
 })
 
-const rtc = new RTCClient({
+let rtc = new RTCClient({
   configuration: {
   iceServers: [
       {
@@ -95,11 +97,12 @@ rtc.onWebRTCMapChange((data: WebRTCMap) => {
 
 watch(webrtcList, async () => {
   await nextTick()
-  webrtcList.value.forEach((stream, index) => {
+  webrtcList.value.forEach((webrtcItem, index) => {
     const video = videoList.value[index]
-    const remoteStream = stream.remoteStream
-    if (remoteStream) {
-      video.srcObject = stream.remoteStream
+    const { remoteStream, type } = webrtcItem
+    if (remoteStream && remoteStream !== video.srcObject) {
+      video.srcObject = remoteStream
+      // console.log(remoteStream);
       video.play()
     }
   })
@@ -135,9 +138,8 @@ const enumerateDevices = async (): Promise<DeviceInfoList> => {
 const device = rtc.mediaDevices
 async function init() {
   try {
-    const localStream = await rtc.getLocalStream()
-    video.value.srcObject = localStream
-    video.value.play()
+    showLocalStream()
+    // shareDisplayMedia()
     const { audioinput, videoinput } = await enumerateDevices()
     audioMediaStreamTrackList.value = audioinput
     cameraMediaStreamTrackList.value = videoinput
@@ -154,13 +156,30 @@ async function init() {
     console.log(message);
   }
 }
-
-function shareDisplayMedia() {
-  // rtc.shareDisplayMedia(displayVideo.value)
+let displayStream = ref<MediaStream>()
+async function shareDisplayMedia() {
+  displayStream.value = await rtc.shareDisplayMedia()
+  displayVideo.value.srcObject = displayStream.value
+  displayVideo.value.muted = true
+  displayVideo.value.play()
 }
 
-function showLocalStream() {
-  // rtc.showLocalStream(video.value)
+let localStream = ref<MediaStream>()
+async function showLocalStream() {
+  localStream.value = await rtc.getLocalStream()
+  video.value.srcObject = localStream.value
+  video.value.muted = true
+  video.value.play()
+  rtc.mediaDevices.startDisplayMediaStreamTrack()
+}
+
+function exit() {
+  if(!rtc) return
+  rtc.close()
+  rtc = null
+  localStream = null
+  video.value.pause()
+  video.value.srcObject = null
 }
 
 // watch(
@@ -185,8 +204,8 @@ function showLocalStream() {
 // )
 init()
 
-onUnmounted(() => {
-  rtc.close()
+onBeforeUnmount(() => {
+  exit()
 })
 </script>
 <style lang="scss" scoped>
