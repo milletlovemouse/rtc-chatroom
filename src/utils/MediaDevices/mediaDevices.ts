@@ -1,5 +1,5 @@
 
-import { Merge, AudioElement, SrcObject } from "../type"
+import { Merge } from "../type"
 export type DeviceInfo = MediaDeviceInfo | InputDeviceInfo
 export type Constraints = Merge<MediaStreamConstraints, {}>
 import CustomEvent, { Callback } from "../event"
@@ -113,7 +113,6 @@ export default class MediaDevices {
       if(id && track.id !== id) continue
       track.stop()
       track.enabled = false
-      console.log(track.enabled, track.readyState);
     }
   }
 
@@ -131,7 +130,6 @@ export default class MediaDevices {
       if(id && track.id !== id) continue
       track.stop()
       track.enabled = false
-      console.log(track.enabled, track.readyState);
     }
   }
 
@@ -139,8 +137,8 @@ export default class MediaDevices {
     // 关闭MediaStream
     this.stopUserMediaStreamTrack()
     this.stopDisplayMediaStreamTrack()
-    this.userEventTaget.close()
-    this.displayEventTarget.close()
+    this.userEventTaget?.close()
+    this.displayEventTarget?.close()
     this.localStream = null
     this.displayStream = null
   }

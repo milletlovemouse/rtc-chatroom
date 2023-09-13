@@ -43,7 +43,8 @@ import { AudioFilled, CameraFilled, AudioOutlined, AudioMutedOutlined } from '@a
 import { Icon } from '@vicons/utils'
 import { Video48Regular, VideoOff48Regular, Video48Filled } from '@vicons/fluent';
 import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
-import RTCClient, { onError, WebRTCMap, WebRTCItem } from '/@/utils/WebRTC/rtc-client';
+import RTCClient, { ConnectorInfoMap, ConnectorInfo } from '/@/utils/WebRTC/rtc-client';
+import { onError } from '../utils/WebRTC/message';
 
 type Options = Array<DeviceInfo>
 const fieldNames = { value: 'deviceId' }
@@ -71,9 +72,12 @@ const cameraInfo = reactive<MediaTrackConstraints>({
   deviceId: ''
 })
 
+const host = 'ws://' + window.location.hostname;
+const port = 3000
+
 let rtc = new RTCClient({
   configuration: {
-  iceServers: [
+    iceServers: [
       {
         urls: `turn:stun.l.google.com:19302`,
         username: "webrtc",
@@ -84,15 +88,21 @@ let rtc = new RTCClient({
   constraints: {
     audio: audioDisabled.value ? false : audioInfo,
     video: cameraDisabled.value ? false : cameraInfo
+  },
+  socketConfig: {
+    host,
+    port,
   }
 })
 
 
-const webrtcList = ref<WebRTCItem[]>(null)
+const webrtcList = ref<ConnectorInfo[]>(null)
 const videoList = ref<HTMLVideoElement[]>(null)
 
-rtc.onWebRTCMapChange((data: WebRTCMap) => {
-  webrtcList.value = [...data.keys()].map(key => data.get(key))
+rtc.onConnectorInfoListChange((data: ConnectorInfo[]) => {
+  console.log('onConnectorInfoListChange', data);
+  data.forEach(item => console.log('forEach', item.remoteStream))
+  webrtcList.value = data
 })
 
 watch(webrtcList, async () => {

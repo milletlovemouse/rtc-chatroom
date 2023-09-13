@@ -2,41 +2,20 @@ import mitt from 'mitt'
 import SocketClient from "../socket-client";
 import WebRTC from "./WebRTC";
 import MediaDevices from "../MediaDevices/mediaDevices";
-import { useError, useSuccess } from "../message";
+import Queue from '../queue';
+import { debounce } from '../util'
 
-const Message = {
-  USER_PERMISSION_DENIED: "用户未允许浏览器访问摄像头和麦克风",
-  DISPLAY_PERMISSION_DENIED: "用户已取消屏幕共享",
-  DISPLAY_SUCCESS: "已开启屏幕共享",
-  USER_SUCCESS: "用户已加入会议",
-  USER_COULD_NOT_START_VIDEO_SOURCE: "无法开启摄像头",
-}
+const timerTime = 100;
 
-type MessageKeyMap = {
-  [x in keyof typeof Message]: x
-}
-
-export const MessageKeyMap: MessageKeyMap = {
-  USER_PERMISSION_DENIED: "USER_PERMISSION_DENIED",
-  DISPLAY_PERMISSION_DENIED: "DISPLAY_PERMISSION_DENIED",
-  DISPLAY_SUCCESS: "DISPLAY_SUCCESS",
-  USER_SUCCESS: "USER_SUCCESS",
-  USER_COULD_NOT_START_VIDEO_SOURCE: "USER_COULD_NOT_START_VIDEO_SOURCE",
-}
-
-const format = (description: string) => description.split(' ').join('_').toUpperCase()
-export const onError = useError(Message, format)
-export const onSuccess = useSuccess(Message, format)
-
-type MittEvent  = {
-  'webrtc-map-change': WebRTCMap
-}
 enum MittEventName {
-  WEBRTC_MAP_CHANGE = "webrtc-map-change",
+  CONNECTOR_INFO_LIST_CHANGE = "CONNECTOR_INFO_LIST_CHANGE",
 }
-const emitter = mitt<MittEvent>()
+type MittEventType  = {
+  'CONNECTOR_INFO_LIST_CHANGE': ConnectorInfo[];
+}
+const emitter = mitt<MittEventType>()
 
-export enum MessageEvent {
+enum MessageEvent {
   OFFER = "offer",
   ANSWER = "answer",
   GET_OFFER = "getOffer",
@@ -44,39 +23,69 @@ export enum MessageEvent {
   EXIT = "exit",
 }
 
+enum WebRTCEvent {
+  TRACK = "track",
+  ICE_CANDIDATE = "icecandidate",
+}
+
+enum MediaDevicesEvent {
+  ENDED = "ended",
+}
+
+enum StreamTypeEnum {
+  USER = 'user',
+  DISPLAY = 'display',
+  REMOTE_DISPLAY = 'remoteDisplay',
+}
+type StreamType = 'user' | 'display' | 'remoteDisplay';
+
+type MemberInfo = {
+  memberId: string
+}
+type OfferMessageData = {
+  remoteConnectorId: string;
+  memberId: string;
+  offer: RTCSessionDescriptionInit;
+  type?: StreamType;
+}
+
+export type ConnectorInfo = {
+  type?: StreamType;
+  webrtc: WebRTC;
+  connectorId: string;
+  memberId?: string;
+  remoteConnectorId?: string;
+  remoteStream?: MediaStream;
+  onicecandidate?: (candidate: RTCIceCandidate) => void;
+  ontrack?: (event: RTCTrackEvent) => void;
+}
+export type ConnectorInfoMap = Map<string, ConnectorInfo>
+
 export type Options = {
-  configuration: RTCConfiguration,
-  constraints: MediaStreamConstraints
+  configuration: RTCConfiguration;
+  constraints: MediaStreamConstraints;
+  socketConfig: {
+    host: string;
+    port: number;
+  }
 }
-
-export type WebRTCType = "user" | "display"
-export type WebRTCItem = {
-  type?: WebRTCType,
-  webrtcId: string,
-  webrtc: WebRTC,
-  merberId?: string,
-  connectorWebrtcId?: string
-  remoteStream?: MediaStream,
-}
-export type WebRTCMap = Map<string, WebRTCItem>
-
-const host = 'ws://' + window.location.hostname;
-const port = 3000
 
 export default class RTCClient extends SocketClient {
   configuration: RTCConfiguration
   constraints: MediaStreamConstraints
   mediaDevices: MediaDevices;
-  webrtcMap: WebRTCMap = new Map();
-  private _displayState: boolean = false;
+  // WebRTC: WebRTC;
+  connectorInfoMap: ConnectorInfoMap = new Map();
   constructor(options: Options) {
-    super({ host, port});
+    super(options.socketConfig);
     this.constraints = options.constraints;
     this.configuration = options.configuration;
     this.mediaDevices = new MediaDevices(this.constraints);
+    // this.WebRTC = new WebRTC(this.configuration)
     this.init()
   }
-
+  
+  private _displayState: boolean = false;
   get displayState() {
     return this._displayState
   }
@@ -90,34 +99,34 @@ export default class RTCClient extends SocketClient {
     });
   }
 
-  async createWebRTC(type?: WebRTCType): Promise<string> {
+  async createConnector(type?: StreamType): Promise<string> {
     const webrtc = new WebRTC(this.configuration)
-    const webrtcId = crypto.randomUUID()
-    const webrtcItem: WebRTCItem = {
-      webrtcId,
-      webrtc,
-      type
+    const connectorId = crypto.randomUUID()
+    const connectorInfo: ConnectorInfo = {
+      type,
+      connectorId,
+      webrtc
     }
-    this.webrtcMap.set(webrtcId, webrtcItem)
-    if (type === 'user') {
+    this.connectorInfoMap.set(connectorId, connectorInfo)
+    if (type === StreamTypeEnum.USER) {
       await webrtc.addLocalStream(this.mediaDevices)
-    } else if (type === 'display') {
+    } else if (type === StreamTypeEnum.DISPLAY) {
       await webrtc.shareDisplayMedia(this.mediaDevices)
-    }
-    this.bindWebRTCEvent(webrtcItem)
-    return webrtcId
+    } 
+    this.bindWebRTCEvent(connectorInfo)
+    return connectorId
   }
 
-  on(eventName: keyof MittEvent, callback: (...args: any[]) => void){
+  on(eventName: keyof MittEventType, callback: (...args: any[]) => void){
     emitter.on(eventName, callback)
   }
 
-  off(eventName: keyof MittEvent, callback: (...args: any[]) => void){
+  off(eventName: keyof MittEventType, callback: (...args: any[]) => void){
     emitter.off(eventName, callback)
   }
 
-  onWebRTCMapChange(callback: (...args: any[]) => void) {
-    this.on(MittEventName.WEBRTC_MAP_CHANGE, callback)
+  onConnectorInfoListChange(callback: (...args: any[]) => void) {
+    this.on(MittEventName.CONNECTOR_INFO_LIST_CHANGE, callback)
   }
 
   bindSocketEvent() {
@@ -128,13 +137,13 @@ export default class RTCClient extends SocketClient {
     this.onMessage(MessageEvent.EXIT, this.exitMessage.bind(this))
   }
 
-  bindWebRTCEvent(webrtcItem: WebRTCItem) {
-    webrtcItem.webrtc.on('icecandidate', this.onicecandidate.bind(this, webrtcItem))
-    webrtcItem.webrtc.on('track', this.ontrack.bind(this, webrtcItem))
+  bindWebRTCEvent(connectorInfo: ConnectorInfo) {
+    connectorInfo.webrtc.on(WebRTCEvent.ICE_CANDIDATE, this.onicecandidate.bind(this, connectorInfo))
+    connectorInfo.webrtc.on(WebRTCEvent.TRACK, this.ontrack.bind(this, connectorInfo))
   }
 
   bindDisplayMediaDevicesEvent() {
-    this.mediaDevices.displayStream_on('ended', this.displayStreamEnded.bind(this))
+    this.mediaDevices.displayStream_on(MediaDevicesEvent.ENDED, this.displayStreamEnded.bind(this))
   }
 
   private displayStreamEnded(event: Event) {
@@ -142,81 +151,72 @@ export default class RTCClient extends SocketClient {
     console.log('displayStreamEnded', event);
   }
 
-  private async createDisplayWebRTC(merberId: string) {
+  private async createDisplayWebRTC(memberInfo: MemberInfo) {
+    const memberId = memberInfo.memberId
     try {
-      const type = 'display'
-      const webrtcId = await this.createWebRTC(type)
-
-      const displayWebrtcItem = this.webrtcMap.get(webrtcId)
-      const webrtc = displayWebrtcItem.webrtc
-      const offer = await webrtc.peerConnection.createOffer()
-      await webrtc.peerConnection.setLocalDescription(offer)
-      this.sendOfferMessage({ webrtcId, merberId, offer, type })
+      const type = StreamTypeEnum.DISPLAY
+      const connectorId = await this.createConnector(type)
+      const connectorInfo = this.connectorInfoMap.get(connectorId)
+      const offer = await connectorInfo.webrtc.peerConnection.createOffer()
+      await connectorInfo.webrtc.peerConnection.setLocalDescription(offer)
+      this.sendOfferMessage({ connectorId, memberId, offer, type })
     } catch (error) {
       console.error(error)
     }
   }
 
   public async shareDisplayMedia() {
-    const webrtcList = Array.from(this.webrtcMap.keys()).map(id => this.webrtcMap.get(id))
-    const isExistDisplay = webrtcList.some(item => item.type === 'display')
+    const webrtcList = Array.from(this.connectorInfoMap.keys()).map(id => this.connectorInfoMap.get(id))
+    const isExistDisplay = webrtcList.some(item => item.type === StreamTypeEnum.DISPLAY || item.type === StreamTypeEnum.REMOTE_DISPLAY)
     if (isExistDisplay) {
       console.log('存在共享屏幕的成员')
       return
     }
+
     // 过滤共享屏幕的非成员类型 为后期经过配置决定是否可存在多屏幕共享做准备
-    await Promise.all(webrtcList.filter(item => item.type !== 'display').map(async webrtcItem => {
-      await this.createDisplayWebRTC(webrtcItem.merberId)
-    }))
+    for(let connectorInfo of webrtcList.filter(item => item.type !== StreamTypeEnum.DISPLAY && item.type !== StreamTypeEnum.REMOTE_DISPLAY)) {
+      await this.createDisplayWebRTC({ memberId: connectorInfo.memberId })
+    }
     const stream = await this.getDisplayStream()
     this.bindDisplayMediaDevicesEvent()
     this._displayState = true
     return stream
   }
 
-  private async getOfferMessage(memberInfo: {merberId: string}) {
+  private async getOfferMessage(memberInfo: MemberInfo) {
+    const memberId = memberInfo.memberId
     if (this._displayState) {
-      this.createDisplayWebRTC(memberInfo.merberId)
+      this.createDisplayWebRTC(memberInfo)
     }
     try {
-      const type = 'user'
-      const merberId = memberInfo.merberId
-      const webrtcId = await this.createWebRTC(type)
-      const webrtcItem = this.webrtcMap.get(webrtcId)
-      const webrtc = webrtcItem.webrtc
-      const offer = await webrtc.peerConnection.createOffer()
-      await webrtc.peerConnection.setLocalDescription(offer)
-      // console.log('signalingState', webrtc.peerConnection.signalingState)
-      this.sendOfferMessage({ webrtcId, merberId, offer, type })
+      const type = StreamTypeEnum.USER
+      const connectorId = await this.createConnector(type)
+      const connectorInfo = this.connectorInfoMap.get(connectorId)
+      const offer = await connectorInfo.webrtc.peerConnection.createOffer()
+      await connectorInfo.webrtc.peerConnection.setLocalDescription(offer)
+      this.sendOfferMessage({ connectorId, memberId, offer, type })
     } catch (error) {
       console.error(error)
     }
   }
 
-  private async offerMessage(data: {
-    connectorWebrtcId: string,
-    merberId: string,
-    offer: RTCSessionDescriptionInit,
-    type?: WebRTCType
-  }) {
+  private async offerMessage(data: OfferMessageData) {
+    const memberId = data.memberId
     try {
-      const { connectorWebrtcId, merberId, type } = data
-      const createType = type === 'user' ? 'user' : undefined
+      const { remoteConnectorId, type } = data
+      const createType = type === StreamTypeEnum.USER ? StreamTypeEnum.USER : StreamTypeEnum.REMOTE_DISPLAY
       const offer = new RTCSessionDescription(data.offer)
-      const webrtcId = await this.createWebRTC(createType)
-      const webrtcItem = this.webrtcMap.get(webrtcId)
-      webrtcItem.merberId = merberId // 记录对方的id
-      webrtcItem.connectorWebrtcId = connectorWebrtcId // 记录对方的webrtcId
-      const webrtc = webrtcItem.webrtc
-      await webrtc.peerConnection.setRemoteDescription(offer)
-      // console.log('signalingState', webrtc.peerConnection.signalingState)
-      const answer = await webrtc.peerConnection.createAnswer()
-      await webrtc.peerConnection.setLocalDescription(answer)
-      // console.log('signalingState', webrtc.peerConnection.signalingState)
+      const connectorId = await this.createConnector(createType)
+      const connectorInfo = this.connectorInfoMap.get(connectorId)
+      connectorInfo.memberId = memberId // 记录对方的id
+      connectorInfo.remoteConnectorId = remoteConnectorId // 记录对方的connectorId
+      await connectorInfo.webrtc.peerConnection.setRemoteDescription(offer)
+      const answer = await connectorInfo.webrtc.peerConnection.createAnswer()
+      await connectorInfo.webrtc.peerConnection.setLocalDescription(answer)
       this.sendAnswerMessage({
-        connectorWebrtcId,
-        webrtcId,
-        merberId,
+        remoteConnectorId,
+        connectorId,
+        memberId,
         answer
       })
     } catch (error) {
@@ -225,98 +225,98 @@ export default class RTCClient extends SocketClient {
   }
 
   private async answerMessage(data: {
-    connectorWebrtcId: string,
-    webrtcId: string;
-    merberId: string,
+    remoteConnectorId: string,
+    connectorId: string;
+    memberId: string,
     answer: RTCSessionDescriptionInit
   }) {
-    const { webrtcId, connectorWebrtcId, merberId } = data
+    const { connectorId, remoteConnectorId, memberId } = data
     const answer = new RTCSessionDescription(data.answer)
-    const webrtcItem = this.webrtcMap.get(webrtcId)
-    if (!webrtcItem) {
+    const connectorInfo = this.connectorInfoMap.get(connectorId)
+    if (!connectorInfo) {
       return
     }
     try {
-      webrtcItem.merberId = merberId // 记录对方的id
-      webrtcItem.connectorWebrtcId = connectorWebrtcId // 记录对方的webrtcId
-      await webrtcItem.webrtc.peerConnection.setRemoteDescription(answer)
-      // console.log('signalingState', webrtcItem.webrtc.peerConnection.signalingState)
+      connectorInfo.memberId = memberId // 记录对方的id
+      connectorInfo.remoteConnectorId = remoteConnectorId // 记录对方的connectorId
+      await connectorInfo.webrtc.peerConnection.setRemoteDescription(answer)
     } catch (error) {
       console.error(error)
     }
   }
 
-  private onicecandidate(webrtcItem: WebRTCItem, event: RTCPeerConnectionIceEvent) {
-    const { connectorWebrtcId, merberId } = webrtcItem
+  private onicecandidate(connectorInfo: ConnectorInfo, event: RTCPeerConnectionIceEvent) {
+    const { remoteConnectorId, memberId } = connectorInfo
     const { candidate } = event
-    if (connectorWebrtcId && merberId && candidate) {
+    if (remoteConnectorId && memberId && candidate) {
       this.sendIcecandidateMessage({
-        connectorWebrtcId,
-        merberId,
+        remoteConnectorId,
+        memberId,
         candidate,
       })
     }
   }
 
-  private ontrack(webrtcItem: WebRTCItem, event: RTCTrackEvent) {
+  private ontrack = (connectorInfo: ConnectorInfo, event: RTCTrackEvent) => {
     const remoteStream = event.streams[0]
-    webrtcItem.remoteStream = remoteStream
-    this[MittEventName.WEBRTC_MAP_CHANGE]()
+    connectorInfo.remoteStream = remoteStream
+    this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
   private icecandidateMessage(data: {
-    webrtcId: string,
+    connectorId: string,
     candidate: RTCIceCandidateInit
   }) {
-    const { webrtcId } = data
-    const webrtcItem = this.webrtcMap.get(webrtcId)
+    const { connectorId } = data
+    const connectorInfo = this.connectorInfoMap.get(connectorId)
     const candidate = new RTCIceCandidate(data.candidate)
-    if (!webrtcItem) {
+    if (!connectorInfo) {
       return
     }
-    webrtcItem.webrtc.peerConnection.addIceCandidate(candidate)
+    connectorInfo.webrtc.peerConnection.addIceCandidate(candidate)
   }
 
-  private exitMessage(data: { webrtcId: string }) {
-    console.log('exitMessage', data)
-    this.closeWebRTCbyId(data.webrtcId)
+  private async exitMessage(data: {
+    connectorId: string,
+    memberId: string,
+  }) {
+    this.closeWebRTCbyId(data.connectorId)
   }
 
   private sendIcecandidateMessage(data: {
-    connectorWebrtcId: string,
-    merberId: string,
+    remoteConnectorId: string,
+    memberId: string,
     candidate: RTCIceCandidateInit
   }) {
     this.sendMessage(MessageEvent.ICE_CANDIDATE, data)
   }
 
   private async sendOfferMessage(data: {
-    webrtcId: string,
-    merberId: string,
+    connectorId: string,
+    memberId: string,
     offer: RTCSessionDescriptionInit,
-    type?: WebRTCType
+    type?: StreamType
   }) {
     this.sendMessage(MessageEvent.OFFER, data)
   }
 
   private async sendAnswerMessage(data: {
-    connectorWebrtcId: string,
-    webrtcId: string,
-    merberId: string,
+    remoteConnectorId: string,
+    connectorId: string,
+    memberId: string,
     answer: RTCSessionDescriptionInit
   }) {
     this.sendMessage(MessageEvent.ANSWER, data)
   }
 
   private sendExit() {
-    const ids = Array.from(this.webrtcMap.keys())
-    if (!ids.length) return
-    const snedMessage = ids.map(id => {
-      const webrtcItem = this.webrtcMap.get(id)
-      const { connectorWebrtcId, merberId } = webrtcItem
+    if (!this.connectorInfoMap.size) return
+    const snedMessage = Array.from(this.connectorInfoMap.keys()).map(id => {
+      const connectorInfo = this.connectorInfoMap.get(id)
+      const { remoteConnectorId, memberId } = connectorInfo
       return {
-        connectorWebrtcId,
-        merberId
+        remoteConnectorId,
+        memberId
       }
     })
     this.sendMessage(MessageEvent.EXIT, snedMessage)
@@ -352,39 +352,46 @@ export default class RTCClient extends SocketClient {
     }
   }
 
-  // 防抖通知
-  private timer: NodeJS.Timeout;
-  private [MittEventName.WEBRTC_MAP_CHANGE]() {
-    if (this.timer) {
-      clearTimeout(this.timer)
+  /**
+   * 防抖通知
+   */
+  private [MittEventName.CONNECTOR_INFO_LIST_CHANGE] = debounce(() => {
+    emitter.emit(
+      MittEventName.CONNECTOR_INFO_LIST_CHANGE,
+      Array.from(this.connectorInfoMap.keys())
+        .map(key => this.connectorInfoMap.get(key))
+        .filter(connectorInfo => connectorInfo.type !== StreamTypeEnum.DISPLAY)
+    )
+  }, timerTime)
+
+  private closeWebRTCbyId(connectorId: string) {
+    const connectorInfo = this.connectorInfoMap.get(connectorId)
+    if (connectorInfo) {
+      connectorInfo.webrtc.close()
+      this.connectorInfoMap.delete(connectorId)
     }
-    this.timer = setTimeout(() => {
-      emitter.emit(MittEventName.WEBRTC_MAP_CHANGE, this.webrtcMap)
-      clearTimeout(this.timer)
-      this.timer = null
-    }, 200)
+    this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
-  closeWebRTCbyId(webrtcId: string) {
-    const webrtcItem = this.webrtcMap.get(webrtcId)
-    if (webrtcItem) {
-      webrtcItem.webrtc.close()
-      this.webrtcMap.delete(webrtcId)
-    }
-    this[MittEventName.WEBRTC_MAP_CHANGE]()
-  }
-
-  closeAllWebRTC() {
-    Array.from(this.webrtcMap.keys()).forEach(webrtcId => {
-      this.closeWebRTCbyId(webrtcId)
+  private closeAllWebRTC() {
+    Array.from(this.connectorInfoMap.keys()).forEach(connectorId => {
+      this.closeWebRTCbyId(connectorId)
     })
   }
+
+  /**
+   * 写这个函数的目的是解决当退出房间时直接emitter.all.clear()清除事件
+   * 会导致MittEventName.CONNECTOR_INFO_LIST_CHANGE无法通知外界连接成员列表已改变
+   */
+  private clearEmitter = debounce(() => {
+    emitter.all.clear()
+  }, timerTime)
 
   close() {
     this.sendExit()
     this.closeAllWebRTC()
     this.mediaDevices.close()
     this.socket.close();
-    emitter.all.clear()
+    this.clearEmitter
   }
 }

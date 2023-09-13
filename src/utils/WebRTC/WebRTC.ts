@@ -1,4 +1,4 @@
-import { MessageEvent, MessageKeyMap } from "./rtc-client"
+import { MessageKeyMap } from "./message"
 import MediaDevices from "../MediaDevices/mediaDevices"
 import CustomEvent, { Callback } from "../event"
 
@@ -38,6 +38,10 @@ export default class WebRTC {
     this.eventTaget.offAll()
   }
 
+  get signalingState(): RTCSignalingState {
+    return this.peerConnection.signalingState
+  }
+
   addTrack(track: MediaStreamTrack | MediaStreamTrack[], stream: MediaStream): RTCRtpSender[] {
     // 将本地媒体流添加到 PeerConnection
     track = Array.isArray(track) ? track : [track]
@@ -65,9 +69,6 @@ export default class WebRTC {
       this.removeTrack(this.localRTCRtpSenderList)
       // 添加本次本地流
       this.localRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], localStream)
-      console.log(audioTracks[0]?.enabled); // 应该为 false
-      console.log(audioTracks[0]?.readyState); // 应该是 "ended"
-      console.info(MessageKeyMap.USER_SUCCESS)
     } catch (error) {
       const message = 'USER_' + error.message.toUpperCase()
       console.error(message)
@@ -79,7 +80,6 @@ export default class WebRTC {
       // 移除上次添加的本地流
       this.removeTrack(this.localRTCRtpSenderList)
       // 隐藏本地媒体流
-      console.info(MessageKeyMap.USER_SUCCESS)
     } catch (error) {
       console.error(error)
     }
@@ -95,7 +95,6 @@ export default class WebRTC {
       this.removeTrack(this.localDisplayRTCRtpSenderList)
       // 添加本次本第流
       this.localDisplayRTCRtpSenderList = this.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
-      console.info(MessageKeyMap.DISPLAY_SUCCESS)
     } catch (error) {
       const message = 'DISPLAY_' + error.message.toUpperCase()
       console.error(message)
@@ -107,7 +106,6 @@ export default class WebRTC {
       // 取消共享屏幕
       // 移除上次添加的本地流
       this.removeTrack(this.localDisplayRTCRtpSenderList)
-      console.info(MessageKeyMap.DISPLAY_SUCCESS)
     } catch (error) {
       const message = 'DISPLAY_' + error.message.toUpperCase()
       console.error(message)
