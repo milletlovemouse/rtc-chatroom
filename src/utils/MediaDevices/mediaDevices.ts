@@ -2,14 +2,14 @@
 import { Merge } from "../type"
 export type DeviceInfo = MediaDeviceInfo | InputDeviceInfo
 export type Constraints = Merge<MediaStreamConstraints, {}>
-import CustomEvent, { Callback } from "../event"
+import CustomEvent from "../event"
 
 export default class MediaDevices {
   constraints: MediaStreamConstraints
   localStream: MediaStream
   displayStream: MediaStream
-  userEventTaget: CustomEvent
-  displayEventTarget: CustomEvent
+  locaStreamEventTaget: CustomEvent
+  displayStreamEventTarget: CustomEvent
   constructor(constraints: MediaStreamConstraints) {
     this.constraints = constraints
   }
@@ -17,39 +17,15 @@ export default class MediaDevices {
   async getUserMedia(): Promise<MediaStream> {
     if (this.localStream) return this.localStream
     this.localStream = await navigator.mediaDevices.getUserMedia(this.constraints)
-    this.userEventTaget = new CustomEvent(this.localStream)
+    this.locaStreamEventTaget = new CustomEvent(this.localStream)
     return this.localStream
   }
 
   async getDisplayMedia(): Promise<MediaStream> {
     if (this.displayStream) return this.displayStream
     this.displayStream = await navigator.mediaDevices.getDisplayMedia(this.constraints)
-    this.displayEventTarget = new CustomEvent(this.displayStream)
+    this.displayStreamEventTarget = new CustomEvent(this.displayStream)
     return this.displayStream
-  }
-
-  localStream_on(eventName: string, callback: Callback) {
-    this.userEventTaget.on(eventName, callback)
-  }
-
-  localStream_off(eventName: string, callback?: Callback) {
-    this.userEventTaget.off(eventName, callback)
-  }
-
-  localStream_offAll() {
-    this.userEventTaget.offAll()
-  }
-
-  displayStream_on(eventName: string, callback: Callback) {
-    this.displayEventTarget.on(eventName, callback)
-  }
-
-  displayStream_off(eventName: string, callback?: Callback) {
-    this.displayEventTarget.off(eventName, callback)
-  }
-
-  displayStream_offAll() {
-    this.displayEventTarget.offAll()
   }
 
   // 获取设备信息
@@ -137,8 +113,8 @@ export default class MediaDevices {
     // 关闭MediaStream
     this.stopUserMediaStreamTrack()
     this.stopDisplayMediaStreamTrack()
-    this.userEventTaget?.close()
-    this.displayEventTarget?.close()
+    this.locaStreamEventTaget?.close()
+    this.displayStreamEventTarget?.close()
     this.localStream = null
     this.displayStream = null
   }

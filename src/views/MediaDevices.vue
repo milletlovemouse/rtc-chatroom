@@ -99,7 +99,7 @@ let rtc = new RTCClient({
 const webrtcList = ref<ConnectorInfo[]>(null)
 const videoList = ref<HTMLVideoElement[]>(null)
 
-rtc.onConnectorInfoListChange((data: ConnectorInfo[]) => {
+rtc.on('connectorInfoListChange', (data: ConnectorInfo[]) => {
   console.log('onConnectorInfoListChange', data);
   data.forEach(item => console.log('forEach', item.remoteStream))
   webrtcList.value = data
@@ -109,7 +109,7 @@ watch(webrtcList, async () => {
   await nextTick()
   webrtcList.value.forEach((webrtcItem, index) => {
     const video = videoList.value[index]
-    const { remoteStream, type } = webrtcItem
+    const { remoteStream, streaTtype } = webrtcItem
     if (remoteStream && remoteStream !== video.srcObject) {
       video.srcObject = remoteStream
       // console.log(remoteStream);
