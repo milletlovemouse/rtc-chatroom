@@ -11,7 +11,7 @@ enum MittEventName {
   CONNECTOR_INFO_LIST_CHANGE = "connectorInfoListChange",
 }
 type MittEventType  = {
-  'connectorInfoListChange': ConnectorInfo[];
+  'connectorInfoListChange': Pick<ConnectorInfo, 'streamType' | 'connectorId' | 'remoteStream'>[];
 }
 const emitter = mitt<MittEventType>()
 
@@ -33,15 +33,15 @@ enum DatachannelEvent {
   MESSAGE = 'message'
 }
 
-enum MediaDevicesEvent {
-  ENDED = "ended",
-}
-
 type ChannelMessageData = {
-  type: 'exit',
-  data: {
+  type: 'exit' | 'offer' | 'answer' | 'icecandidate' | 'getOffer',
+  data?: {
     [x: string]: any
   }
+}
+
+enum MediaDevicesEvent {
+  ENDED = "ended",
 }
 
 type MemberInfo = {
@@ -51,7 +51,7 @@ type OfferMessageData = {
   remoteConnectorId: string;
   memberId: string;
   offer: RTCSessionDescriptionInit;
-  streaTtype?: StreamType;
+  streamType?: StreamType;
 }
 
 enum StreamTypeEnum {
@@ -67,15 +67,24 @@ enum TypeEnum {
 }
 type Type = 'offer' | 'answer';
 
+enum KindEnum {
+  AUDIO = 'audio',
+  VIDEO = 'video',
+}
+type Kind = 'audio' | 'video';
+
 export type ConnectorInfo = {
   type: Type;
-  streaTtype: StreamType;
+  streamType: StreamType;
   webrtc: WebRTC;
   connectorId: string;
   memberId?: string;
   remoteConnectorId?: string;
   remoteStream?: MediaStream;
   channel?: RTCDataChannel;
+  senders?: RTCRtpSender[];
+  receivers?: RTCRtpReceiver[];
+  transceivers?: RTCRtpTransceiver[];
   onicecandidate?: (candidate: RTCIceCandidate) => void;
   ontrack?: (event: RTCTrackEvent) => void;
 }
@@ -94,7 +103,7 @@ export default class RTCClient extends SocketClient {
   configuration: RTCConfiguration
   constraints: MediaStreamConstraints
   mediaDevices: MediaDevices;
-  connectorInfoMap: ConnectorInfoMap = new Map();
+  private connectorInfoMap: ConnectorInfoMap = new Map();
   constructor(options: Options) {
     super(options.socketConfig);
     this.constraints = options.constraints;
@@ -110,28 +119,43 @@ export default class RTCClient extends SocketClient {
 
   init() {
     this.bindSocketEvent();
-    // 这段代码之后要转移到业务代码块
     window.addEventListener('unload', (event) => {
       event.preventDefault();
       this.close()
     });
   }
 
-  async createConnector(type: Type, streaTtype?: StreamType): Promise<string> {
+  /**
+   * 创建客户端之间的连接
+   * @param type 
+   * @param streamType 
+   * @returns 
+   */
+  async createConnector(type: Type, streamType?: StreamType): Promise<string> {
     const webrtc = new WebRTC(this.configuration)
     const connectorId = crypto.randomUUID()
     const connectorInfo: ConnectorInfo = {
       type,
-      streaTtype,
+      streamType,
       connectorId,
-      webrtc
+      webrtc,
     }
     this.connectorInfoMap.set(connectorId, connectorInfo)
-    if (streaTtype === StreamTypeEnum.USER) {
+    
+    if (streamType === StreamTypeEnum.USER) {
       await this.addLocalStream(connectorInfo)
-    } else if (streaTtype === StreamTypeEnum.DISPLAY) {
+    } else if (streamType === StreamTypeEnum.DISPLAY) {
       await this.addDisplayStream(connectorInfo)
     } 
+
+    if (type === TypeEnum.OFFER) {
+      // 创建信息通道
+      webrtc.createDataChannel('chat')
+      this.bindDataChannelEvent(connectorInfo)
+    } else if (type === TypeEnum.ANSWER) {
+      // 绑定监听远端创建信息通道事件
+      this.bindPeerConnectionEvent(connectorInfo, PeerConnectionEvent.DATACHANNEL)
+    }
     this.bindPeerConnectionEvent(connectorInfo)
     return connectorId
   }
@@ -170,124 +194,116 @@ export default class RTCClient extends SocketClient {
     this.mediaDevices.displayStreamEventTarget.on(MediaDevicesEvent.ENDED, this.displayStreamEnded.bind(this))
   }
 
+  /**
+   * 添加本地媒体流
+   * @param connectorInfo 
+   */
   async addLocalStream(connectorInfo: ConnectorInfo) {
-    try {
-      // 添加本地媒体流
-      const { webrtc } = connectorInfo
-      const localStream = await this.mediaDevices.getUserMedia()
-      const audioTracks = localStream.getAudioTracks()
-      const videoTracks = localStream.getVideoTracks()
-      // 添加本次本地流
-      webrtc.addTrack([...videoTracks, ...audioTracks], localStream)
-    } catch (error) {
-      const message = 'USER_' + error.message.toUpperCase()
-      console.error(message)
-    }
+    const { webrtc } = connectorInfo
+    const localStream = await this.mediaDevices.getUserMedia()
+    const audioTracks = localStream.getAudioTracks()
+    const videoTracks = localStream.getVideoTracks()
+    webrtc.addTrack([...videoTracks, ...audioTracks], localStream)
   }
-
-  // async removeLocalStream() {
-  //   try {
-  //     // 移除上次添加的本地流
-  //     this.removeTrack(this.localRTCRtpSenderList)
-  //     // 隐藏本地媒体流
-  //   } catch (error) {
-  //     console.error(error)
-  //   }
-  // }
   
+  /**
+   * 添加共享屏幕媒体流
+   * @param connectorInfo 
+   */
   async addDisplayStream(connectorInfo: ConnectorInfo) {
-    try {
-      // 共享屏幕
-      const { webrtc } = connectorInfo
-      const localDisplayStream = await this.mediaDevices.getDisplayMedia()
-      const audioTracks = localDisplayStream.getAudioTracks()
-      const videoTracks = localDisplayStream.getVideoTracks()
-      // 添加本次本第流
-      webrtc.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
-    } catch (error) {
-      const message = 'DISPLAY_' + error.message.toUpperCase()
-      console.error(message)
-    }
+    const { webrtc } = connectorInfo
+    const localDisplayStream = await this.mediaDevices.getDisplayMedia()
+    const audioTracks = localDisplayStream.getAudioTracks()
+    const videoTracks = localDisplayStream.getVideoTracks()
+    webrtc.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
   }
-
-  // async cancelShareDisplayMedia() {
-  //   try {
-  //     // 取消共享屏幕
-  //     // 移除上次添加的本地流
-  //     this.removeTrack(this.localDisplayRTCRtpSenderList)
-  //   } catch (error) {
-  //     const message = 'DISPLAY_' + error.message.toUpperCase()
-  //     console.error(message)
-  //   }
-  // }
 
   private displayStreamEnded(event: Event) {
     this._displayState = false
     console.log('displayStreamEnded', event);
   }
 
-  private async createDisplayWebRTC(memberInfo: MemberInfo) {
+  /**
+   * 创建客户端之间的共享屏幕的连接
+   * @param memberInfo 
+   */
+  private async createDisplayConnector(memberInfo: MemberInfo) {
     const memberId = memberInfo.memberId
-    try {
-      const streaTtype = StreamTypeEnum.DISPLAY
-      const connectorId = await this.createConnector(TypeEnum.OFFER, streaTtype)
-      const connectorInfo = this.connectorInfoMap.get(connectorId)
-      const offer = await connectorInfo.webrtc.peerConnection.createOffer()
-      await connectorInfo.webrtc.peerConnection.setLocalDescription(offer)
-      this.sendOfferMessage({ connectorId, memberId, offer, streaTtype })
-    } catch (error) {
-      console.error(error)
-    }
+    const streamType = StreamTypeEnum.DISPLAY
+    const connectorId = await this.createConnector(TypeEnum.OFFER, streamType)
+    const connectorInfo = this.connectorInfoMap.get(connectorId)
+    const offer = await connectorInfo.webrtc.peerConnection.createOffer()
+    await connectorInfo.webrtc.peerConnection.setLocalDescription(offer)
+    this.sendOfferMessage({ connectorId, memberId, offer, streamType })
   }
 
+  /**
+   * 暴露共享屏幕接口
+   */
   public async shareDisplayMedia() {
     const webrtcList = Array.from(this.connectorInfoMap.keys()).map(id => this.connectorInfoMap.get(id))
-    const isExistDisplay = webrtcList.some(item => item.streaTtype === StreamTypeEnum.DISPLAY || item.streaTtype === StreamTypeEnum.REMOTE_DISPLAY)
-    if (isExistDisplay) {
-      console.log('存在共享屏幕的成员')
+    const isDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.DISPLAY)
+    const isRemoteDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.REMOTE_DISPLAY)
+    if (isDisplay) {
+      console.log('你正在共享屏幕')
+      return await this.getDisplayStream()
+    }
+
+    if (isRemoteDisplay) {
+      console.log('存在远程共享屏幕')
       return
     }
 
-    // 过滤共享屏幕的非成员类型 为后期经过配置决定是否可存在多屏幕共享做准备
-    for(let connectorInfo of webrtcList.filter(item => item.streaTtype !== StreamTypeEnum.DISPLAY && item.streaTtype !== StreamTypeEnum.REMOTE_DISPLAY)) {
-      await this.createDisplayWebRTC({ memberId: connectorInfo.memberId })
+    try {
+      // 过滤共享屏幕的非成员类型 为后期经过配置决定是否可存在多屏幕共享做准备
+      for(let connectorInfo of webrtcList.filter(item => item.streamType !== StreamTypeEnum.DISPLAY && item.streamType !== StreamTypeEnum.REMOTE_DISPLAY)) {
+        await this.createDisplayConnector({ memberId: connectorInfo.memberId })
+      }
+      const stream = await this.getDisplayStream()
+      this.bindDisplayMediaDevicesEvent()
+      this._displayState = true
+      return stream
+    } catch (error) {
+      console.error(error);
+      return Promise.reject(error)
     }
-    const stream = await this.getDisplayStream()
-    this.bindDisplayMediaDevicesEvent()
-    this._displayState = true
-    return stream
   }
+
+  /**
+   * socket getOffer 消息处理事件，远程客户端发起请求，信令服务器通知
+   * @param memberInfo 
+   */
 
   private async getOfferMessage(memberInfo: MemberInfo) {
     const memberId = memberInfo.memberId
     if (this._displayState) {
-      this.createDisplayWebRTC(memberInfo)
+      this.createDisplayConnector(memberInfo)
     }
     try {
-      const streaTtype = StreamTypeEnum.USER
-      const connectorId = await this.createConnector(TypeEnum.OFFER, streaTtype)
+      const streamType = StreamTypeEnum.USER
+      const connectorId = await this.createConnector(TypeEnum.OFFER, streamType)
       const connectorInfo = this.connectorInfoMap.get(connectorId)
       const { webrtc } = connectorInfo
-      // 创建信息通道
-      webrtc.createDataChannel('chat')
-      this.bindDataChannelEvent(connectorInfo)
       const offer = await webrtc.peerConnection.createOffer()
       await webrtc.peerConnection.setLocalDescription(offer)
-      this.sendOfferMessage({ connectorId, memberId, offer, streaTtype })
+      this.sendOfferMessage({ connectorId, memberId, offer, streamType })
     } catch (error) {
       console.error(error)
     }
   }
 
+  /**
+   * socket offer 消息处理事件，远程客户端发起请求，信令服务器通知
+   * @param memberInfo 
+   */
   private async offerMessage(data: OfferMessageData) {
     const memberId = data.memberId
     try {
-      const { remoteConnectorId, streaTtype } = data
-      const createType = streaTtype === StreamTypeEnum.USER ? StreamTypeEnum.USER : StreamTypeEnum.REMOTE_DISPLAY
+      const { remoteConnectorId, streamType } = data
+      const createType = streamType === StreamTypeEnum.USER ? StreamTypeEnum.USER : StreamTypeEnum.REMOTE_DISPLAY
       const offer = new RTCSessionDescription(data.offer)
       const connectorId = await this.createConnector(TypeEnum.ANSWER, createType)
       const connectorInfo = this.connectorInfoMap.get(connectorId)
-      this.bindPeerConnectionEvent(connectorInfo, PeerConnectionEvent.DATACHANNEL)
       connectorInfo.memberId = memberId // 记录对方的id
       connectorInfo.remoteConnectorId = remoteConnectorId // 记录对方的connectorId
       const { webrtc } = connectorInfo
@@ -305,6 +321,10 @@ export default class RTCClient extends SocketClient {
     }
   }
 
+  /**
+   * socket answer 消息处理事件，远程客户端发起请求，信令服务器通知
+   * @param memberInfo 
+   */
   private async answerMessage(data: {
     remoteConnectorId: string,
     connectorId: string;
@@ -337,6 +357,78 @@ export default class RTCClient extends SocketClient {
     connectorInfo.channel = channel 
   }
 
+  /**
+   * dataChannel信息通道消息处理事件
+   * @param connectorInfo 
+   * @param event 
+   */
+  private async dataChannelMessage(connectorInfo: ConnectorInfo, event: MessageEvent) {
+    const message = JSON.parse(event.data) as ChannelMessageData
+    const { type, data  } = message
+    const { peerConnection: pc } = connectorInfo.webrtc
+    if (type === MessageEventType.EXIT) {
+      this.exitMessage(data as {
+        connectorId: string,
+        memberId: string,
+      })
+    } else if (type === MessageEventType.GET_OFFER) {
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      const sdp = pc.localDescription.sdp
+      this.channelSend(connectorInfo, {
+        type: MessageEventType.OFFER,
+        data: { sdp, offer }
+      })
+    } else if (type === MessageEventType.OFFER) {
+      const offer = new RTCSessionDescription(data.offer)
+      await pc.setRemoteDescription(offer)
+      const answer = await pc.createAnswer()
+      pc.setLocalDescription(answer)
+      const sdp = pc.remoteDescription.sdp
+      this.channelSend(connectorInfo, {
+        type: MessageEventType.ANSWER,
+        data: { sdp, answer }
+      })
+      console.log(connectorInfo);
+    } else if (type === MessageEventType.ANSWER) {
+      const answer = new RTCSessionDescription(data.answer)
+      await pc.setRemoteDescription(answer)
+      console.log(connectorInfo);
+    }
+  }
+
+  /**
+   * dataChannel exit 成员退出通知事件
+   * @param memberInfo 
+   */
+  private async exitMessage(data: {
+    connectorId: string,
+    memberId: string,
+  }) {
+    this.closeWebRTCbyId(data.connectorId)
+  }
+
+  /**
+   * RTCPeerConnection绑定事件 对等方有新的媒体轨道加入时通知
+   * @param connectorInfo 
+   * @param event 
+   */
+  private ontrack = (connectorInfo: ConnectorInfo, event: RTCTrackEvent) => {
+    const { peerConnection: pc } = connectorInfo.webrtc
+    connectorInfo.senders = pc.getSenders()
+    connectorInfo.receivers = pc.getReceivers()
+    connectorInfo.transceivers = pc.getTransceivers()
+    const remoteStream = event.streams[0]
+    connectorInfo.remoteStream = remoteStream
+    this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
+    console.log('ontrack', connectorInfo);
+  }
+
+  /**
+   * RTCPeerConnection绑定事件 第一次offer SDP、answer SDP交换完成连接成功后执行
+   * @param connectorInfo 
+   * @param event 
+   */
   private onicecandidate(connectorInfo: ConnectorInfo, event: RTCPeerConnectionIceEvent) {
     const { remoteConnectorId, memberId } = connectorInfo
     const { candidate } = event
@@ -347,14 +439,15 @@ export default class RTCClient extends SocketClient {
         candidate,
       })
     }
-  }
-
-  private ontrack = (connectorInfo: ConnectorInfo, event: RTCTrackEvent) => {
-    const remoteStream = event.streams[0]
-    connectorInfo.remoteStream = remoteStream
     this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
+    console.log('onicecandidate', connectorInfo);
   }
 
+  /**
+   * socket 事件，远程客户端发起，信令服务器通知，ICE Candidate 交换
+   * @param data 
+   * @returns 
+   */
   private icecandidateMessage(data: {
     connectorId: string,
     candidate: RTCIceCandidateInit
@@ -366,25 +459,7 @@ export default class RTCClient extends SocketClient {
       return
     }
     connectorInfo.webrtc.peerConnection.addIceCandidate(candidate)
-  }
-
-  private dataChannelMessage(connectorInfo: ConnectorInfo, event: MessageEvent) {
-    console.log('dataChannelMessage');
-    const message = JSON.parse(event.data) as ChannelMessageData
-    const { type, data  } = message
-    if (type === 'exit') {
-      this.exitMessage(data as {
-        connectorId: string,
-        memberId: string,
-      })
-    }
-  }
-
-  private async exitMessage(data: {
-    connectorId: string,
-    memberId: string,
-  }) {
-    this.closeWebRTCbyId(data.connectorId)
+    this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
   private sendIcecandidateMessage(data: {
@@ -399,7 +474,7 @@ export default class RTCClient extends SocketClient {
     connectorId: string,
     memberId: string,
     offer: RTCSessionDescriptionInit,
-    streaTtype?: StreamType
+    streamType?: StreamType
   }) {
     this.sendMessage(MessageEventType.OFFER, data)
   }
@@ -413,11 +488,20 @@ export default class RTCClient extends SocketClient {
     this.sendMessage(MessageEventType.ANSWER, data)
   }
 
+  private channelSend(connectorInfo: ConnectorInfo, data: ChannelMessageData) {
+    const { type, channel, webrtc } = connectorInfo
+    if (type === TypeEnum.OFFER) {
+      webrtc.dataChannel.send(JSON.stringify(data))
+    } else if (type === TypeEnum.ANSWER) {
+      channel.send(JSON.stringify(data))
+    }
+  }
+
   private sendExit() {
     if (!this.connectorInfoMap.size) return
     Array.from(this.connectorInfoMap.keys()).forEach(id => {
       const connectorInfo = this.connectorInfoMap.get(id)
-      const { remoteConnectorId, memberId, type, channel, webrtc } = connectorInfo
+      const { remoteConnectorId, memberId } = connectorInfo
       const data: ChannelMessageData = {
         type: MessageEventType.EXIT,
         data: {
@@ -425,26 +509,128 @@ export default class RTCClient extends SocketClient {
           memberId
         }
       }
-      if (type === TypeEnum.OFFER) {
-        webrtc.dataChannel.send(JSON.stringify(data))
-      } else if (type === TypeEnum.ANSWER) {
-        channel.send(JSON.stringify(data))
-      }
+      this.channelSend(connectorInfo, data)
     })
+  }
+
+  /**
+   * 切换设备或设备状态后刷新连接
+   * @param connectorInfo 
+   */
+  private async restartConnector(connectorInfo: ConnectorInfo) {
+    const { type, webrtc: { peerConnection: pc } } = connectorInfo
+    let data: ChannelMessageData
+    if (type === TypeEnum.OFFER) {
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      const sdp = pc.localDescription.sdp
+      data = {
+        type: MessageEventType.OFFER,
+        data: {
+          sdp,
+          offer
+        }
+      }
+    } else if (type === TypeEnum.ANSWER) {
+      data = { type: MessageEventType.GET_OFFER }
+    }
+    this.channelSend(connectorInfo, data)
+  }
+
+  /**
+   * 切换设备媒体轨道
+   * @param deviceId 
+   * @param kind 
+   */
+  replaceTrack(deviceId: string, kind: Kind) {
+    const type = typeof this.constraints[kind]
+    if (type === 'boolean') {
+      this.constraints[kind] = {
+        deviceId
+      }
+    } else if (type === 'object') {
+      (this.constraints[kind] as MediaTrackConstraints).deviceId = deviceId
+    }
+    navigator.mediaDevices.getUserMedia(this.constraints).then(stream => {
+      const name = kind.charAt(0).toUpperCase() + kind.slice(1)
+      const [track] = stream[`get${name}Tracks`]();
+      this.connectorInfoMap.forEach(async connectorInfo => {
+        const { streamType, webrtc } = connectorInfo
+        const pc = webrtc.peerConnection
+        if (streamType === StreamTypeEnum.DISPLAY || streamType === StreamTypeEnum.REMOTE_DISPLAY){
+          return
+        }
+        const sender = pc.getSenders().find((s) => s.track?.kind === track?.kind);
+        // sender.replaceTrack(track)
+        webrtc.removeTrack(sender)
+        webrtc.addTrack(track, this.mediaDevices.localStream)
+
+        this.restartConnector(connectorInfo)
+      })
+    })
+  }
+
+  replaceVideoTrack(deviceId: string) {
+    this.replaceTrack(deviceId, KindEnum.VIDEO)
+  }
+
+  replaceAudioTrack(deviceId: string) {
+    this.replaceTrack(deviceId, KindEnum.AUDIO)
+  }
+
+  /**
+   * 切换设备状态，本质还是改变媒体轨道
+   * @param state 
+   * @param kind 
+   */
+  deviceSwitch(state: boolean, kind: Kind) {
+    navigator.mediaDevices.getUserMedia(this.constraints).then(stream => {
+      const name = kind.charAt(0).toUpperCase() + kind.slice(1)
+      const [track] = stream[`get${name}Tracks`]();
+      this.connectorInfoMap.forEach(async connectorInfo => {
+        const { streamType, webrtc } = connectorInfo
+        const pc = webrtc.peerConnection
+        if (streamType === StreamTypeEnum.DISPLAY || streamType === StreamTypeEnum.REMOTE_DISPLAY){
+          return
+        }
+        if (state) {
+          webrtc.addTrack(track, this.mediaDevices.localStream)
+        } else {
+          const sender = pc.getSenders().find((s) => s.track?.kind === track?.kind);
+          webrtc.removeTrack(sender)
+        }
+        this.restartConnector(connectorInfo)
+      })
+    })
+  }
+
+  disableAudio() {
+    this.deviceSwitch(false, KindEnum.AUDIO)
+  }
+
+  enableAudio() {
+    this.deviceSwitch(true, KindEnum.AUDIO)
+  }
+
+  disableVideo() {
+    this.deviceSwitch(false, KindEnum.VIDEO)
+  }
+
+  enableVideo() {
+    this.deviceSwitch(true, KindEnum.VIDEO)
   }
 
   async getLocalStream() {
     try {
       // 获取本地媒体流
-      const localStream = await this.mediaDevices.getUserMedia()
-      const audioTracks = localStream.getAudioTracks()
-      // 暂时移除音频轨道
-      // this.mediaDevices.removeTrack(audioTracks, localStream)
-      // await this.mediaDevices.stop(audioTracks[0]?.id)
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        ...this.constraints,
+        audio: false
+      })
       return localStream
     } catch (error) {
-      const message = error.message.toUpperCase()
-      console.error(message)
+      console.error(error)
+      return Promise.reject(error)
     }
   }
 
@@ -452,14 +638,9 @@ export default class RTCClient extends SocketClient {
     try {
       // 获取本地屏幕媒体流
       const displayStream = await this.mediaDevices.getDisplayMedia()
-      const audioTracks = displayStream.getAudioTracks()
-      // 暂时移除音频轨道
-      // this.mediaDevices.removeTrack(audioTracks, displayStream)
-      // await this.mediaDevices.stop(audioTracks[0]?.id)
       return displayStream
     } catch (error) {
-      const message = error.message.toUpperCase()
-      console.error(message)
+      return Promise.reject(error)
     }
   }
 
@@ -470,9 +651,17 @@ export default class RTCClient extends SocketClient {
     emitter.emit(
       MittEventName.CONNECTOR_INFO_LIST_CHANGE,
       Array.from(this.connectorInfoMap.keys())
-        .map(key => this.connectorInfoMap.get(key))
-        .filter(connectorInfo => connectorInfo.streaTtype !== StreamTypeEnum.DISPLAY)
+        .map(key => {
+          const { streamType, connectorId, remoteStream } = this.connectorInfoMap.get(key)
+          return {
+            streamType,
+            connectorId,
+            remoteStream
+          }
+        })
+        .filter(connectorInfo => connectorInfo.streamType !== StreamTypeEnum.DISPLAY)
     )
+    console.log('[...this.connectorInfoMap.values()]', [...this.connectorInfoMap.values()]);
   }, timerTime)
 
   private closeWebRTCbyId(connectorId: string) {

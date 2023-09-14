@@ -57,13 +57,6 @@ const cameraMediaStreamTrackList = ref<Options>([])
 // 禁用媒体设备
 const audioDisabled = ref(false)
 const cameraDisabled = ref(false)
-// 切换禁用状态
-const audioDisabledToggle = () => {
-  audioDisabled.value = !audioDisabled.value
-}
-const cameraDisabledToggle = () => {
-  cameraDisabled.value = !cameraDisabled.value
-}
 
 const audioInfo = reactive<MediaTrackConstraints>({
   deviceId: ''
@@ -95,6 +88,24 @@ let rtc = new RTCClient({
   }
 })
 
+// 切换禁用状态
+const audioDisabledToggle = () => {
+  audioDisabled.value = !audioDisabled.value
+  if (audioDisabled.value) {
+    rtc.disableAudio()
+  } else {
+    rtc.enableAudio()
+  }
+}
+const cameraDisabledToggle = () => {
+  cameraDisabled.value = !cameraDisabled.value
+  if (cameraDisabled.value) {
+    rtc.disableVideo()
+  } else {
+    rtc.enableVideo()
+  }
+}
+
 
 const webrtcList = ref<ConnectorInfo[]>(null)
 const videoList = ref<HTMLVideoElement[]>(null)
@@ -109,7 +120,7 @@ watch(webrtcList, async () => {
   await nextTick()
   webrtcList.value.forEach((webrtcItem, index) => {
     const video = videoList.value[index]
-    const { remoteStream, streaTtype } = webrtcItem
+    const { remoteStream, streamType } = webrtcItem
     if (remoteStream && remoteStream !== video.srcObject) {
       video.srcObject = remoteStream
       // console.log(remoteStream);
@@ -118,13 +129,15 @@ watch(webrtcList, async () => {
   })
 }, { deep: true })
 
-const audioChange = (deviceId: ConstrainDOMString) => {
+const audioChange = (deviceId: string) => {
   audioInfo.deviceId = deviceId
+  rtc.replaceAudioTrack(deviceId)
   console.log(deviceId);
 }
 
-const cameraChange = (deviceId: ConstrainDOMString) => {
+const cameraChange = (deviceId: string) => {
   cameraInfo.deviceId = deviceId
+  rtc.replaceVideoTrack(deviceId)
   console.log(deviceId);
 }
 
@@ -149,7 +162,6 @@ const device = rtc.mediaDevices
 async function init() {
   try {
     showLocalStream()
-    // shareDisplayMedia()
     const { audioinput, videoinput } = await enumerateDevices()
     audioMediaStreamTrackList.value = audioinput
     cameraMediaStreamTrackList.value = videoinput
@@ -166,57 +178,46 @@ async function init() {
     console.log(message);
   }
 }
+
 let displayStream = ref<MediaStream>()
 async function shareDisplayMedia() {
-  displayStream.value = await rtc.shareDisplayMedia()
-  displayVideo.value.srcObject = displayStream.value
-  displayVideo.value.muted = true
-  displayVideo.value.play()
+  try {
+    displayStream.value = await rtc.shareDisplayMedia()
+    displayVideo.value.srcObject = displayStream.value
+    // displayVideo.value.muted = true
+    displayVideo.value.play()
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 let localStream = ref<MediaStream>()
 async function showLocalStream() {
-  localStream.value = await rtc.getLocalStream()
-  video.value.srcObject = localStream.value
-  video.value.muted = true
-  video.value.play()
-  rtc.mediaDevices.startDisplayMediaStreamTrack()
+  try {
+    localStream.value = await rtc.getLocalStream()
+    video.value.srcObject = localStream.value
+    // video.value.muted = true
+    video.value.play()
+    // rtc.mediaDevices.startDisplayMediaStreamTrack()
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 function exit() {
   if(!rtc) return
   rtc.close()
   rtc = null
-  localStream = null
   video.value.pause()
-  video.value.srcObject = null
+  displayVideo.value.pause()
+  localStream = displayStream = video.value.srcObject = displayVideo.value.srcObject = null
 }
-
-// watch(
-//   cameraDisabled,
-//   (value) => {
-//     if (value) {
-//       rtc.hideLocalStream(video.value)
-//     } else {
-//       rtc.showLocalStream(video.value)
-//     }
-//   }
-// )
-
-// watch(
-//   () => [audioInfo, cameraInfo],
-//   async () => {
-//     showLocalStream()
-//   },
-//   {
-//     deep: true,
-//   }
-// )
-init()
 
 onBeforeUnmount(() => {
   exit()
 })
+
+init()
 </script>
 <style lang="scss" scoped>
 .rtc ::v-deep .ant-card-body {

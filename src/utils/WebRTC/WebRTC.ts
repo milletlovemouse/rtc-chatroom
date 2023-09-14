@@ -4,9 +4,6 @@ export default class WebRTC {
   configuration: RTCConfiguration
   peerConnection: RTCPeerConnection
   dataChannel: RTCDataChannel
-  sender: RTCRtpSender
-  receiver: RTCRtpReceiver
-  transceivers: RTCRtpTransceiver
   peerConnectionEventTaget: CustomEvent
   dataChannelEventTarget: CustomEvent
 
@@ -64,8 +61,6 @@ export default class WebRTC {
   close() {
     this.peerConnectionEventTaget.close()
     this.dataChannelEventTarget?.close()
-    // this.removeLocalStream()
-    // this.cancelShareDisplayMedia()
     this.peerConnection.close()
     this.peerConnection = null
     this.dataChannel?.close()
