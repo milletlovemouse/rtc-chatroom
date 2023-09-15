@@ -4,14 +4,20 @@ import WebRTC from "./WebRTC";
 import MediaDevices from "../MediaDevices/mediaDevices";
 import Queue from '../queue';
 import { debounce } from '../util'
+import observer from '../observer';
+import CustomEventTarget from '../event';
 
 const timerTime = 100;
 
 enum MittEventName {
   CONNECTOR_INFO_LIST_CHANGE = "connectorInfoListChange",
+  DISPLAY_STREAM_CHANGE = "displayStreamChange",
+  LOCAL_STREAM_CHANGE = "localStreamChange",
 }
 type MittEventType  = {
   'connectorInfoListChange': Pick<ConnectorInfo, 'streamType' | 'connectorId' | 'remoteStream'>[];
+  'displayStreamChange': MediaStream,
+  'localStreamChange': MediaStream,
 }
 const emitter = mitt<MittEventType>()
 
@@ -40,7 +46,7 @@ type ChannelMessageData = {
   }
 }
 
-enum MediaDevicesEvent {
+enum MediaStreamTrackEvent {
   ENDED = "ended",
 }
 
@@ -117,7 +123,7 @@ export default class RTCClient extends SocketClient {
     return this._displayState
   }
 
-  init() {
+  private init() {
     this.bindSocketEvent();
     window.addEventListener('unload', (event) => {
       event.preventDefault();
@@ -131,7 +137,7 @@ export default class RTCClient extends SocketClient {
    * @param streamType 
    * @returns 
    */
-  async createConnector(type: Type, streamType?: StreamType): Promise<string> {
+  private async createConnector(type: Type, streamType?: StreamType): Promise<string> {
     const webrtc = new WebRTC(this.configuration)
     const connectorId = crypto.randomUUID()
     const connectorInfo: ConnectorInfo = {
@@ -160,7 +166,7 @@ export default class RTCClient extends SocketClient {
     return connectorId
   }
 
-  on(eventName: keyof MittEventType, callback: (...args: any[]) => void){
+  on<K extends keyof MittEventType, Args extends MittEventType[K]>(eventName: K, callback: (args: Args) => void){
     emitter.on(eventName, callback)
   }
 
@@ -190,15 +196,18 @@ export default class RTCClient extends SocketClient {
     webrtc.dataChannelEventTarget.on(DatachannelEvent.MESSAGE, this.dataChannelMessage.bind(this, connectorInfo))
   }
 
-  private bindDisplayMediaDevicesEvent() {
-    this.mediaDevices.displayStreamEventTarget.on(MediaDevicesEvent.ENDED, this.displayStreamEnded.bind(this))
+  private bindDisplayMediaStreamTrackEvent() {
+    const [ track ] = this.mediaDevices.displayStream.getVideoTracks()
+    const trackEventTarget = new CustomEventTarget(track)
+    trackEventTarget.on(MediaStreamTrackEvent.ENDED, this.displayStreamTrackEnded.bind(this))
+    this.mediaDevices.displayStreamTrackEventTargets.push(trackEventTarget)
   }
 
   /**
    * 添加本地媒体流
    * @param connectorInfo 
    */
-  async addLocalStream(connectorInfo: ConnectorInfo) {
+  private async addLocalStream(connectorInfo: ConnectorInfo) {
     const { webrtc } = connectorInfo
     const localStream = await this.mediaDevices.getUserMedia()
     const audioTracks = localStream.getAudioTracks()
@@ -210,7 +219,7 @@ export default class RTCClient extends SocketClient {
    * 添加共享屏幕媒体流
    * @param connectorInfo 
    */
-  async addDisplayStream(connectorInfo: ConnectorInfo) {
+  private async addDisplayStream(connectorInfo: ConnectorInfo) {
     const { webrtc } = connectorInfo
     const localDisplayStream = await this.mediaDevices.getDisplayMedia()
     const audioTracks = localDisplayStream.getAudioTracks()
@@ -218,9 +227,12 @@ export default class RTCClient extends SocketClient {
     webrtc.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
   }
 
-  private displayStreamEnded(event: Event) {
-    this._displayState = false
-    console.log('displayStreamEnded', event);
+  /**
+   * 屏幕共享媒体流的视频轨道启用状态变化处理事件
+   * @param event 
+   */
+  private displayStreamTrackEnded(event: Event) {
+    this.cancelShareDisplayMedia()
   }
 
   /**
@@ -241,7 +253,7 @@ export default class RTCClient extends SocketClient {
    * 暴露共享屏幕接口
    */
   public async shareDisplayMedia() {
-    const webrtcList = Array.from(this.connectorInfoMap.keys()).map(id => this.connectorInfoMap.get(id))
+    const webrtcList = [...this.connectorInfoMap.values()]
     const isDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.DISPLAY)
     const isRemoteDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.REMOTE_DISPLAY)
     if (isDisplay) {
@@ -260,13 +272,26 @@ export default class RTCClient extends SocketClient {
         await this.createDisplayConnector({ memberId: connectorInfo.memberId })
       }
       const stream = await this.getDisplayStream()
-      this.bindDisplayMediaDevicesEvent()
+      this.bindDisplayMediaStreamTrackEvent()
       this._displayState = true
+      emitter.emit(MittEventName.DISPLAY_STREAM_CHANGE, stream)
       return stream
     } catch (error) {
       console.error(error);
       return Promise.reject(error)
     }
+  }
+
+  /**
+   * 暴露取消屏幕共享接口
+   */
+  public cancelShareDisplayMedia() {
+    emitter.emit(MittEventName.DISPLAY_STREAM_CHANGE, null)
+    this.mediaDevices.closeDisplayMediaStream()
+    this._displayState = false
+    this.sendExit(
+      new Map([...this.connectorInfoMap.entries()].filter(([connectorId, connectorInfo]) => connectorInfo.streamType === StreamTypeEnum.DISPLAY))
+    )
   }
 
   /**
@@ -389,16 +414,14 @@ export default class RTCClient extends SocketClient {
         type: MessageEventType.ANSWER,
         data: { sdp, answer }
       })
-      console.log(connectorInfo);
     } else if (type === MessageEventType.ANSWER) {
       const answer = new RTCSessionDescription(data.answer)
       await pc.setRemoteDescription(answer)
-      console.log(connectorInfo);
     }
   }
 
   /**
-   * dataChannel exit 成员退出通知事件
+   * RTCDataChannel事件 exit 成员退出通知事件
    * @param memberInfo 
    */
   private async exitMessage(data: {
@@ -421,7 +444,6 @@ export default class RTCClient extends SocketClient {
     const remoteStream = event.streams[0]
     connectorInfo.remoteStream = remoteStream
     this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
-    console.log('ontrack', connectorInfo);
   }
 
   /**
@@ -440,7 +462,6 @@ export default class RTCClient extends SocketClient {
       })
     }
     this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
-    console.log('onicecandidate', connectorInfo);
   }
 
   /**
@@ -494,13 +515,11 @@ export default class RTCClient extends SocketClient {
       webrtc.dataChannel.send(JSON.stringify(data))
     } else if (type === TypeEnum.ANSWER) {
       channel.send(JSON.stringify(data))
-    }
+    } 
   }
 
-  private sendExit() {
-    if (!this.connectorInfoMap.size) return
-    Array.from(this.connectorInfoMap.keys()).forEach(id => {
-      const connectorInfo = this.connectorInfoMap.get(id)
+  private sendExit(connectorInfoMap: ConnectorInfoMap) {
+    connectorInfoMap.forEach(connectorInfo => {
       const { remoteConnectorId, memberId } = connectorInfo
       const data: ChannelMessageData = {
         type: MessageEventType.EXIT,
@@ -514,7 +533,7 @@ export default class RTCClient extends SocketClient {
   }
 
   /**
-   * 切换设备或设备状态后刷新连接
+   * 切换设备或设备状态后刷新连接，刷新依赖于RTCDataChannel信息通道
    * @param connectorInfo 
    */
   private async restartConnector(connectorInfo: ConnectorInfo) {
@@ -614,10 +633,12 @@ export default class RTCClient extends SocketClient {
 
   disableVideo() {
     this.deviceSwitch(false, KindEnum.VIDEO)
+    emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, null)
   }
 
-  enableVideo() {
+  async enableVideo() {
     this.deviceSwitch(true, KindEnum.VIDEO)
+    emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, await this.getLocalStream())
   }
 
   async getLocalStream() {
@@ -650,9 +671,9 @@ export default class RTCClient extends SocketClient {
   private [MittEventName.CONNECTOR_INFO_LIST_CHANGE] = debounce(() => {
     emitter.emit(
       MittEventName.CONNECTOR_INFO_LIST_CHANGE,
-      Array.from(this.connectorInfoMap.keys())
-        .map(key => {
-          const { streamType, connectorId, remoteStream } = this.connectorInfoMap.get(key)
+      Array.from(this.connectorInfoMap.values())
+        .map(connectorInfo => {
+          const { streamType, connectorId, remoteStream } = connectorInfo
           return {
             streamType,
             connectorId,
@@ -661,7 +682,6 @@ export default class RTCClient extends SocketClient {
         })
         .filter(connectorInfo => connectorInfo.streamType !== StreamTypeEnum.DISPLAY)
     )
-    console.log('[...this.connectorInfoMap.values()]', [...this.connectorInfoMap.values()]);
   }, timerTime)
 
   private closeWebRTCbyId(connectorId: string) {
@@ -688,7 +708,7 @@ export default class RTCClient extends SocketClient {
   }, timerTime)
 
   close() {
-    this.sendExit()
+    this.sendExit(this.connectorInfoMap)
     this.closeAllWebRTC()
     this.mediaDevices.close()
     this.socket.close();

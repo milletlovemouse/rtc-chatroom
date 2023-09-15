@@ -1,7 +1,7 @@
 export type Callback =  (...args: any[]) => void
 export type EventMap = Map<string, Set<Callback>>
 
-export default class CustomEvent {
+export default class CustomEventTarget {
   target: EventTarget;
   eventMap: EventMap = new Map()
   constructor(target?: EventTarget) {

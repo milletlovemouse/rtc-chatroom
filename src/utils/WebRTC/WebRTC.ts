@@ -1,11 +1,11 @@
-import CustomEvent from "../event"
+import CustomEventTarget from "../event"
 
 export default class WebRTC {
   configuration: RTCConfiguration
   peerConnection: RTCPeerConnection
   dataChannel: RTCDataChannel
-  peerConnectionEventTaget: CustomEvent
-  dataChannelEventTarget: CustomEvent
+  peerConnectionEventTaget: CustomEventTarget
+  dataChannelEventTarget: CustomEventTarget
 
   constructor(configuration: RTCConfiguration) {
     this.configuration = configuration
@@ -19,13 +19,13 @@ export default class WebRTC {
   createPeerConnection() {
     // 创建 PeerConnection
     this.peerConnection = new RTCPeerConnection();
-    this.peerConnectionEventTaget = new CustomEvent(this.peerConnection)
+    this.peerConnectionEventTaget = new CustomEventTarget(this.peerConnection)
     this.peerConnection.setConfiguration(this.configuration);
   }
 
   createDataChannel(label: string, option?: RTCDataChannelInit) {
     this.dataChannel = this.peerConnection.createDataChannel(label, option);
-    this.dataChannelEventTarget = new CustomEvent(this.dataChannel)
+    this.dataChannelEventTarget = new CustomEventTarget(this.dataChannel)
     return this.dataChannel
   }
 

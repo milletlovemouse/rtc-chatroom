@@ -27,7 +27,7 @@
       <a-button @click="cameraDisabledToggle"  shape="circle" :icon="h(Icon, {class: 'anticon'}, () => h(cameraDisabled ? VideoOff48Regular : Video48Regular))" />
     </a-space>
     &nbsp;
-    <a-button @click="shareDisplayMedia" type="primary">共享屏幕</a-button>
+    <a-button @click="shareDisplayMedia" type="primary"  :icon="h(Icon, {class: 'anticon'}, () => h(displayStream ? DeviceDesktopOff : DeviceDesktop))" >{{ displayStream ? '取消共享' : '共享屏幕' }}</a-button>
     &nbsp;
     <a-button @click="exit" type="primary">退出房间</a-button>
     <a-card title="Video" :bordered="false">
@@ -42,6 +42,7 @@ import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, 
 import { AudioFilled, CameraFilled, AudioOutlined, AudioMutedOutlined } from '@ant-design/icons-vue';
 import { Icon } from '@vicons/utils'
 import { Video48Regular, VideoOff48Regular, Video48Filled } from '@vicons/fluent';
+import { DeviceDesktop, DeviceDesktopOff } from '@vicons/tabler'
 import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
 import RTCClient, { ConnectorInfoMap, ConnectorInfo } from '/@/utils/WebRTC/rtc-client';
 import { onError } from '../utils/WebRTC/message';
@@ -88,7 +89,7 @@ let rtc = new RTCClient({
   }
 })
 
-// 切换禁用状态
+// 麦克风设备切换禁用状态
 const audioDisabledToggle = () => {
   audioDisabled.value = !audioDisabled.value
   if (audioDisabled.value) {
@@ -97,6 +98,7 @@ const audioDisabledToggle = () => {
     rtc.enableAudio()
   }
 }
+// 摄像头设备切换禁用状态
 const cameraDisabledToggle = () => {
   cameraDisabled.value = !cameraDisabled.value
   if (cameraDisabled.value) {
@@ -107,13 +109,37 @@ const cameraDisabledToggle = () => {
 }
 
 
-const webrtcList = ref<ConnectorInfo[]>(null)
+const webrtcList = ref<Pick<ConnectorInfo, "streamType" | "connectorId" | "remoteStream">[]>(null)
 const videoList = ref<HTMLVideoElement[]>(null)
 
-rtc.on('connectorInfoListChange', (data: ConnectorInfo[]) => {
+rtc.on('connectorInfoListChange', (data) => {
   console.log('onConnectorInfoListChange', data);
   data.forEach(item => console.log('forEach', item.remoteStream))
   webrtcList.value = data
+})
+
+rtc.on('displayStreamChange', (stream) => {
+  if (!stream) {
+    displayVideo.value.pause()
+    displayVideo.value.srcObject = displayStream.value = null
+  } else {
+    displayStream.value = stream
+    displayVideo.value.srcObject = displayStream.value
+    // displayVideo.value.muted = true
+    displayVideo.value.play()
+  }
+})
+
+rtc.on('localStreamChange', (stream) => {
+  if (!stream) {
+    video.value.pause()
+    video.value.srcObject = displayStream.value = null
+  } else {
+    localStream.value = stream
+    video.value.srcObject = localStream.value
+    // video.value.muted = true
+    video.value.play()
+  }
 })
 
 watch(webrtcList, async () => {
@@ -129,12 +155,14 @@ watch(webrtcList, async () => {
   })
 }, { deep: true })
 
+// 麦克风设备切换处理事件
 const audioChange = (deviceId: string) => {
   audioInfo.deviceId = deviceId
   rtc.replaceAudioTrack(deviceId)
   console.log(deviceId);
 }
 
+// 摄像头设备切换处理事件
 const cameraChange = (deviceId: string) => {
   cameraInfo.deviceId = deviceId
   rtc.replaceVideoTrack(deviceId)
@@ -179,18 +207,17 @@ async function init() {
   }
 }
 
+// 开启屏幕共享
 let displayStream = ref<MediaStream>()
 async function shareDisplayMedia() {
-  try {
-    displayStream.value = await rtc.shareDisplayMedia()
-    displayVideo.value.srcObject = displayStream.value
-    // displayVideo.value.muted = true
-    displayVideo.value.play()
-  } catch (error) {
-    console.log(error);
+  if (displayStream.value) {
+    rtc.cancelShareDisplayMedia()
+    return
   }
+  rtc.shareDisplayMedia()
 }
 
+// 显示本地流
 let localStream = ref<MediaStream>()
 async function showLocalStream() {
   try {
@@ -198,12 +225,12 @@ async function showLocalStream() {
     video.value.srcObject = localStream.value
     // video.value.muted = true
     video.value.play()
-    // rtc.mediaDevices.startDisplayMediaStreamTrack()
   } catch (error) {
     console.log(error);
   }
 }
 
+// 退出房间
 function exit() {
   if(!rtc) return
   rtc.close()

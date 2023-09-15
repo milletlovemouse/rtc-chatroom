@@ -1,15 +1,16 @@
-
 import { Merge } from "../type"
 export type DeviceInfo = MediaDeviceInfo | InputDeviceInfo
 export type Constraints = Merge<MediaStreamConstraints, {}>
-import CustomEvent from "../event"
+import CustomEventTarget from "../event"
 
 export default class MediaDevices {
   constraints: MediaStreamConstraints
   localStream: MediaStream
   displayStream: MediaStream
-  locaStreamEventTaget: CustomEvent
-  displayStreamEventTarget: CustomEvent
+  locaStreamEventTaget: CustomEventTarget
+  displayStreamEventTarget: CustomEventTarget
+  locaStreamTrackEventTargets: CustomEventTarget[] = []
+  displayStreamTrackEventTargets: CustomEventTarget[] = []
   constructor(constraints: MediaStreamConstraints) {
     this.constraints = constraints
   }
@@ -17,14 +18,14 @@ export default class MediaDevices {
   async getUserMedia(): Promise<MediaStream> {
     if (this.localStream) return this.localStream
     this.localStream = await navigator.mediaDevices.getUserMedia(this.constraints)
-    this.locaStreamEventTaget = new CustomEvent(this.localStream)
+    this.locaStreamEventTaget = new CustomEventTarget(this.localStream)
     return this.localStream
   }
 
   async getDisplayMedia(): Promise<MediaStream> {
     if (this.displayStream) return this.displayStream
     this.displayStream = await navigator.mediaDevices.getDisplayMedia(this.constraints)
-    this.displayStreamEventTarget = new CustomEvent(this.displayStream)
+    this.displayStreamEventTarget = new CustomEventTarget(this.displayStream)
     return this.displayStream
   }
 
@@ -109,13 +110,29 @@ export default class MediaDevices {
     }
   }
 
+  closeUserMediaStream() {
+    this.stopUserMediaStreamTrack()
+    this.locaStreamEventTaget?.close()
+    this.localStream = null
+    let trackEventTarget = null
+    while(trackEventTarget = this.locaStreamTrackEventTargets.pop()) {
+      trackEventTarget.close()
+    }
+  }
+
+  closeDisplayMediaStream() {
+    this.stopDisplayMediaStreamTrack()
+    this.displayStreamEventTarget?.close()
+    this.displayStream = null
+    let trackEventTarget = null
+    while(trackEventTarget = this.displayStreamTrackEventTargets.pop()) {
+      trackEventTarget.close()
+    }
+  }
+
   close() {
     // 关闭MediaStream
-    this.stopUserMediaStreamTrack()
-    this.stopDisplayMediaStreamTrack()
-    this.locaStreamEventTaget?.close()
-    this.displayStreamEventTarget?.close()
-    this.localStream = null
-    this.displayStream = null
+    this.closeUserMediaStream()
+    this.closeDisplayMediaStream()
   }
 }
