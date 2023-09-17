@@ -1,5 +1,5 @@
 <template lang="">
-  <div>
+  <div class="clipboard">
     <a-button @click="openClipboard" type="primary">打开剪切板</a-button>
     <!-- 在这里加个空格符号 -->
     &nbsp;&nbsp;

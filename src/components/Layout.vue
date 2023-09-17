@@ -19,11 +19,12 @@
         <menu-fold-outlined v-else class="trigger" @click="() => (collapsed = !collapsed)" />
       </a-layout-header>
       <a-layout-content
-        :style="{ margin: '24px 16px 0', padding: '24px', background: '#fff', minHeight: 'calc(100vh - 70px - 64px - 24px)' }"
+        style="--main-height: calc(100vh - 70px - 64px - 24px);"
+        :style="{ margin: '24px 16px 0', padding: '24px', background: '#fff' , minHeight: 'var(--main-height)'}"
       >
-        <div v-if="show">
+        <template v-if="show">
           <component :is='component'></component>
-        </div>
+        </template>
       </a-layout-content>
       <a-layout-footer style="text-align: center">
         Ant Design ©2018 Created by Ant UED

@@ -6,6 +6,7 @@ import Queue from '../queue';
 import { debounce } from '../util'
 import observer from '../observer';
 import CustomEventTarget from '../event';
+import { onError } from './message'
 
 const timerTime = 100;
 
@@ -26,7 +27,10 @@ enum MessageEventType {
   ANSWER = "answer",
   GET_OFFER = "getOffer",
   ICE_CANDIDATE = "icecandidate",
-  EXIT = "exit",
+  JOIN = "join",
+  LEAVE = "leave",
+  CLOSE = "close",
+  ERROR = "error",
 }
 
 enum PeerConnectionEvent {
@@ -40,7 +44,7 @@ enum DatachannelEvent {
 }
 
 type ChannelMessageData = {
-  type: 'exit' | 'offer' | 'answer' | 'icecandidate' | 'getOffer',
+  type: 'close' | 'offer' | 'answer' | 'icecandidate' | 'getOffer',
   data?: {
     [x: string]: any
   }
@@ -110,6 +114,7 @@ export default class RTCClient extends SocketClient {
   constraints: MediaStreamConstraints
   mediaDevices: MediaDevices;
   private connectorInfoMap: ConnectorInfoMap = new Map();
+  private clientId = crypto.randomUUID()
   constructor(options: Options) {
     super(options.socketConfig);
     this.constraints = options.constraints;
@@ -125,10 +130,6 @@ export default class RTCClient extends SocketClient {
 
   private init() {
     this.bindSocketEvent();
-    window.addEventListener('unload', (event) => {
-      event.preventDefault();
-      this.close()
-    });
   }
 
   /**
@@ -146,8 +147,7 @@ export default class RTCClient extends SocketClient {
       connectorId,
       webrtc,
     }
-    this.connectorInfoMap.set(connectorId, connectorInfo)
-    
+
     if (streamType === StreamTypeEnum.USER) {
       await this.addLocalStream(connectorInfo)
     } else if (streamType === StreamTypeEnum.DISPLAY) {
@@ -162,15 +162,17 @@ export default class RTCClient extends SocketClient {
       // 绑定监听远端创建信息通道事件
       this.bindPeerConnectionEvent(connectorInfo, PeerConnectionEvent.DATACHANNEL)
     }
+
     this.bindPeerConnectionEvent(connectorInfo)
+    this.connectorInfoMap.set(connectorId, connectorInfo)
     return connectorId
   }
 
-  on<K extends keyof MittEventType, Args extends MittEventType[K]>(eventName: K, callback: (args: Args) => void){
+  public on<K extends keyof MittEventType, Args extends MittEventType[K]>(eventName: K, callback: (args: Args) => void){
     emitter.on(eventName, callback)
   }
 
-  off(eventName: keyof MittEventType, callback: (...args: any[]) => void){
+  public off(eventName: keyof MittEventType, callback: (...args: any[]) => void){
     emitter.off(eventName, callback)
   }
 
@@ -179,7 +181,8 @@ export default class RTCClient extends SocketClient {
     this.onMessage(MessageEventType.ANSWER, this.answerMessage.bind(this))
     this.onMessage(MessageEventType.GET_OFFER, this.getOfferMessage.bind(this))
     this.onMessage(MessageEventType.ICE_CANDIDATE, this.icecandidateMessage.bind(this))
-    this.onMessage(MessageEventType.EXIT, this.exitMessage.bind(this))
+    this.onMessage(MessageEventType.LEAVE, this.leaveMessage.bind(this))
+    this.onMessage(MessageEventType.ERROR, this.errorMessage.bind(this))
   }
 
   private bindPeerConnectionEvent(connectorInfo: ConnectorInfo, eventName?: typeof PeerConnectionEvent.DATACHANNEL) {
@@ -277,7 +280,7 @@ export default class RTCClient extends SocketClient {
       emitter.emit(MittEventName.DISPLAY_STREAM_CHANGE, stream)
       return stream
     } catch (error) {
-      console.error(error);
+      this._displayState = false
       return Promise.reject(error)
     }
   }
@@ -289,9 +292,35 @@ export default class RTCClient extends SocketClient {
     emitter.emit(MittEventName.DISPLAY_STREAM_CHANGE, null)
     this.mediaDevices.closeDisplayMediaStream()
     this._displayState = false
-    this.sendExit(
-      new Map([...this.connectorInfoMap.entries()].filter(([connectorId, connectorInfo]) => connectorInfo.streamType === StreamTypeEnum.DISPLAY))
-    )
+    this.connectorInfoMap.forEach(connectorInfo => {
+      if (connectorInfo.streamType === StreamTypeEnum.DISPLAY) {
+        const { connectorId } = connectorInfo
+        this.sendClose(connectorInfo, { connectorId })
+        this.closeConnectorById(connectorId)
+      }
+    })
+  }
+
+  public join(data: {
+    username: string,
+    roomname: string
+  }) {
+    this.sendJoin({
+      id: this.clientId,
+      ...data
+    })
+  }
+
+  public leave() {
+    const data = Array.from(this.connectorInfoMap.values()).map(connectorInfo => {
+      const { remoteConnectorId, memberId } = connectorInfo
+      return {
+        remoteConnectorId,
+        memberId
+      }
+    })
+    this.sendleave(data)
+    this.closeAllConnector()
   }
 
   /**
@@ -391,11 +420,8 @@ export default class RTCClient extends SocketClient {
     const message = JSON.parse(event.data) as ChannelMessageData
     const { type, data  } = message
     const { peerConnection: pc } = connectorInfo.webrtc
-    if (type === MessageEventType.EXIT) {
-      this.exitMessage(data as {
-        connectorId: string,
-        memberId: string,
-      })
+    if (type === MessageEventType.CLOSE) {
+      this.closeMessage(data as { connectorId: string })
     } else if (type === MessageEventType.GET_OFFER) {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
@@ -420,15 +446,25 @@ export default class RTCClient extends SocketClient {
     }
   }
 
-  /**
-   * RTCDataChannel事件 exit 成员退出通知事件
+    /**
+   * RTCDataChannel close事件 connector关闭通知事件
    * @param memberInfo 
    */
-  private async exitMessage(data: {
+    private async closeMessage(data: {
+      connectorId: string,
+    }) {
+      this.closeConnectorById(data.connectorId)
+    }
+
+  /**
+   * socket leave事件 成员退出通知事件
+   * @param memberInfo 
+   */
+  private async leaveMessage(data: {
     connectorId: string,
     memberId: string,
   }) {
-    this.closeWebRTCbyId(data.connectorId)
+    this.closeConnectorById(data.connectorId)
   }
 
   /**
@@ -483,6 +519,12 @@ export default class RTCClient extends SocketClient {
     this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
+  private errorMessage(error: {
+    message: string
+  }) {
+    onError(error.message)
+  }
+
   private sendIcecandidateMessage(data: {
     remoteConnectorId: string,
     memberId: string,
@@ -518,17 +560,25 @@ export default class RTCClient extends SocketClient {
     } 
   }
 
-  private sendExit(connectorInfoMap: ConnectorInfoMap) {
-    connectorInfoMap.forEach(connectorInfo => {
-      const { remoteConnectorId, memberId } = connectorInfo
-      const data: ChannelMessageData = {
-        type: MessageEventType.EXIT,
-        data: {
-          connectorId: remoteConnectorId,
-          memberId
-        }
-      }
-      this.channelSend(connectorInfo, data)
+  private sendJoin(data: {
+    id: string,
+    username: string,
+    roomname: string
+  }) {
+    this.sendMessage(MessageEventType.JOIN, data)
+  }
+
+  private sendleave(data: Array<{
+    remoteConnectorId: string,
+    memberId: string
+  }>) {
+    this.sendMessage(MessageEventType.LEAVE, data)
+  }
+
+  private sendClose(connectorInfo: ConnectorInfo, data: { connectorId: string }) {
+    this.channelSend(connectorInfo, {
+      type: MessageEventType.CLOSE,
+      data: data
     })
   }
 
@@ -569,6 +619,8 @@ export default class RTCClient extends SocketClient {
       }
     } else if (type === 'object') {
       (this.constraints[kind] as MediaTrackConstraints).deviceId = deviceId
+    } else {
+      this.constraints[kind] = { deviceId }
     }
     navigator.mediaDevices.getUserMedia(this.constraints).then(stream => {
       const name = kind.charAt(0).toUpperCase() + kind.slice(1)
@@ -589,8 +641,9 @@ export default class RTCClient extends SocketClient {
     })
   }
 
-  replaceVideoTrack(deviceId: string) {
+  async replaceVideoTrack(deviceId: string) {
     this.replaceTrack(deviceId, KindEnum.VIDEO)
+    emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, await this.getLocalStream())
   }
 
   replaceAudioTrack(deviceId: string) {
@@ -650,7 +703,6 @@ export default class RTCClient extends SocketClient {
       })
       return localStream
     } catch (error) {
-      console.error(error)
       return Promise.reject(error)
     }
   }
@@ -684,7 +736,7 @@ export default class RTCClient extends SocketClient {
     )
   }, timerTime)
 
-  private closeWebRTCbyId(connectorId: string) {
+  private closeConnectorById(connectorId: string) {
     const connectorInfo = this.connectorInfoMap.get(connectorId)
     if (connectorInfo) {
       connectorInfo.webrtc.close()
@@ -693,9 +745,9 @@ export default class RTCClient extends SocketClient {
     this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
-  private closeAllWebRTC() {
+  private closeAllConnector() {
     Array.from(this.connectorInfoMap.keys()).forEach(connectorId => {
-      this.closeWebRTCbyId(connectorId)
+      this.closeConnectorById(connectorId)
     })
   }
 
@@ -708,8 +760,7 @@ export default class RTCClient extends SocketClient {
   }, timerTime)
 
   close() {
-    this.sendExit(this.connectorInfoMap)
-    this.closeAllWebRTC()
+    this.closeAllConnector()
     this.mediaDevices.close()
     this.socket.close();
     this.clearEmitter

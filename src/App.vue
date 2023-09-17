@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import Layout from '/@/components/Layout.vue'
+import { ref } from 'vue';
+import { theme } from 'ant-design-vue';
+
+const defaultData = {
+  borderRadius: 4,
+  colorPrimary: '#000',
+  borderColor: '#000',
+};
+const data = ref(defaultData);
+const { token } = theme.useToken();
 </script>
 
 <template>
-  <a-config-provider>
+  <a-config-provider :theme="{ token: { colorPrimary: data.colorPrimary, borderRadius: `${data.borderRadius}px` } }">
     <a-app>
       <Layout />
     </a-app>

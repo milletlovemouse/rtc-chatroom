@@ -17,10 +17,15 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        rewrite: path => {
+          return path.replace(/^\/api/, '')
+        }
+      },
       '/socket.io': {
         target: 'http://localhost:3000',
         rewrite: path => {
-          debugger
           return path.replace(/^\/socket.io/, '')
         }
       }
@@ -39,7 +44,7 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        // additionalData: `@import "/@/styles/variables.scss";` // 你的全局样式文件路径
+        additionalData: `@import "/@/styles/variables.scss";` // 你的全局样式文件路径
       }
     }
   }
