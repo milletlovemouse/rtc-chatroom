@@ -18,13 +18,15 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        // target: 'http://localhost:3000',
+        target: 'http://192.168.50.144:3000',
         rewrite: path => {
           return path.replace(/^\/api/, '')
         }
       },
       '/socket.io': {
-        target: 'http://localhost:3000',
+        // target: 'http://localhost:3000',
+        target: 'http://192.168.50.144:3000',
         rewrite: path => {
           return path.replace(/^\/socket.io/, '')
         }

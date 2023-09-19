@@ -5,9 +5,11 @@ export type Options = {
   port: number;
 }
 
-export default class SocketClient {
-  socket: Socket;
+export type ConnectFunc = (...args: any[]) => void
 
+export default class SocketClient {
+  readonly socket: Socket;
+  private connect: ConnectFunc
   constructor(options: Options) {
     const { host, port } = options;
     const url = host + ":" + port;
@@ -27,6 +29,10 @@ export default class SocketClient {
     this.socket.off(messageName, callback);
   }
 
+  public onConnect(callback: ConnectFunc) {
+    this.connect = callback
+  }
+
   public sendTextMessage(message: string) {
     this.socket.emit("text", message);
   }
@@ -39,9 +45,12 @@ export default class SocketClient {
     this.socket.emit("file", message);
   }
 
-  bind() {
+  public bind() {
     this.socket.on("connect", () => {
       console.log('connect', this.socket.id);
+      if (this.connect) {
+        this.connect()
+      }
     });
     
     this.socket.on("disconnect", () => {
@@ -49,7 +58,7 @@ export default class SocketClient {
     });
   }
 
-  close() {
+  public close() {
     this.socket.close();
   }
 }

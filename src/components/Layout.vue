@@ -20,7 +20,13 @@
       </a-layout-header>
       <a-layout-content
         style="--main-height: calc(100vh - 70px - 64px - 24px);"
-        :style="{ margin: '24px 16px 0', padding: '24px', background: '#fff' , minHeight: 'var(--main-height)'}"
+        :style="{ 
+          margin: '24px 16px 0',
+          padding: '24px',
+          background: '#2b2b2b' ,
+          minHeight: 'var(--main-height)',
+          borderRadius: '10px'
+        }"
       >
         <template v-if="show">
           <component :is='component'></component>

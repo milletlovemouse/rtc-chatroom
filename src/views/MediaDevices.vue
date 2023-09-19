@@ -5,16 +5,14 @@
     </template>
     <template v-else>
       <div class="rtc-main">
-        <div class="video-body">
-          <div class="video-box" v-if="localStream">
-            <video ref="video" :srcObject="localStream"></video>
-          </div>
-          <div class="video-box" v-if="displayStream">
-            <video ref="displayVideo" :srcObject="localStream"></video>
-          </div>
-          <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.id">
-            <video ref="videoList" :srcObject="connectorInfo.remoteStream"></video>
-          </div>
+        <div class="video-box" v-if="localStream">
+          <video ref="video" :srcObject="localStream"></video>
+        </div>
+        <div class="video-box" v-if="displayStream">
+          <video ref="displayVideo" :srcObject="localStream"></video>
+        </div>
+        <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.id">
+          <video ref="videoList" :srcObject="connectorInfo.remoteStream"></video>
         </div>
       </div>
     </template>
@@ -27,6 +25,7 @@
         @audioDisabledToggle="audioDisabledToggle"
         @cameraDisabledToggle="cameraDisabledToggle"
         @dispalyEnabledToggle="shareDisplayMedia"
+        @resolutionChange="resolutionChange"
         @exit="exit" />
     </div> 
   </div>
@@ -36,7 +35,7 @@ import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, 
 import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
 import RTCClient, { ConnectorInfoMap, ConnectorInfo } from '/@/utils/WebRTC/rtc-client';
 import { onError } from '../utils/WebRTC/message';
-import DeviceSelect from '/@/components/chat/DeviceSelect.vue';
+import DeviceSelect, { ModelValue } from '/@/components/chat/DeviceSelect.vue';
 import Join from '/@/components/chat/Join.vue';
 
 const isInRoom = ref<boolean>(false)
@@ -48,7 +47,7 @@ let localStream = ref<MediaStream>(null)
 // 屏幕共享媒体流
 let displayStream = ref<MediaStream>(null)
 
-const deviceInfo = ref({
+const deviceInfo = ref<ModelValue>({
   audioDisabled: false,
   cameraDisabled: false,
   audioDeviceId: '',
@@ -57,7 +56,7 @@ const deviceInfo = ref({
 })
 
 const join = (userInfo: { username: string, roomname: string }) => {
-  fetch(`/api/checkUername?${new URLSearchParams(userInfo).toString()}`, { method: 'GET' })
+  fetch(`/api/checkUsername?${new URLSearchParams(userInfo).toString()}`, { method: 'GET' })
     .then(response => response.json())
     .then(async data => {
       if (!data.isRepeat) {
@@ -74,7 +73,8 @@ const join = (userInfo: { username: string, roomname: string }) => {
     })
 }
 
-const host = 'ws://' + window.location.hostname;
+// const host = 'ws://' + window.location.hostname;
+const host = 'ws://192.168.50.144'
 const port = 3000
 
 const memberList = ref<Pick<ConnectorInfo, "streamType" | "connectorId" | "remoteStream">[]>([])
@@ -106,28 +106,27 @@ let rtc = new RTCClient({
 
 rtc.on('connectorInfoListChange', (data) => {
   console.log('onConnectorInfoListChange', data);
-  data.forEach(item => console.log('forEach', item.remoteStream))
   memberList.value = data
 })
 
 rtc.on('displayStreamChange', async (stream) => {
   displayStream.value = stream
   await nextTick()
-  displayVideo.value.play()
+  displayVideo.value?.play()
 })
 
 rtc.on('localStreamChange', async (stream) => {
   localStream.value = stream
   if (!isInRoom.value) return
   await nextTick()
-  video.value.play()
+  video.value?.play()
 })
 
 watch(memberList, async () => {
   await nextTick()
   memberList.value.forEach((connectorInfo, index) => {
     const video = videoList.value[index]
-    video.play()
+    video?.play()
   })
 }, { deep: true })
 
@@ -158,6 +157,7 @@ const cameraChange = (deviceId: string) => {
   rtc.replaceVideoTrack(deviceId)
 }
 
+// 切换屏幕共享
 async function shareDisplayMedia(value: boolean) {
   if (!value) {
     rtc.cancelShareDisplayMedia()
@@ -166,6 +166,18 @@ async function shareDisplayMedia(value: boolean) {
   rtc.shareDisplayMedia().catch(() => {
     deviceInfo.value.dispalyEnabled = false
   })
+}
+
+(function showLocalStream() {
+  rtc.getLocalStream().then((stream) => {
+    localStream.value = stream
+    video.value?.play()
+  })
+})()
+
+// 切换分辨率
+const resolutionChange = (constraints: MediaTrackConstraints) => {
+  // rtc.setVideoSettings(constraints)
 }
 
 // 退出房间
@@ -189,22 +201,29 @@ onBeforeUnmount(() => {
   window.removeEventListener('unload', close);
 })
 
-const aspectRatio = computed<number>(() => {
-  return 16 / 9
-})
+// let aspect_ratio = 1
+// const aspectRatio = computed<number>(() => {
+//   if (!localStream.value) return aspect_ratio
+//   const videoTrack = localStream.value.getVideoTracks()[0]
+//   if (!videoTrack) return aspect_ratio
+//   const settings = videoTrack.getSettings()
+//   aspect_ratio = settings.aspectRatio
+//   return aspect_ratio
+// })
 
-const videoWidth = computed<string>(() => {
-  let num = memberList.value.length
-  if (localStream.value) num++
-  if (displayStream.value) num++
-  const percentage = 
-    num > 6
-      ? 25 
-      : num >= 4
-        ? 33 : num > 1
-          ? 50 : 100
-  return Math.max((100 / num), percentage).toFixed(2) + '%'
-})
+// const videoWidth = computed<string>(() => {
+//   let num = memberList.value.length
+//   if (localStream.value) num++
+//   if (displayStream.value) num++
+//   const percentage = 
+//     num > 6
+//       ? 25 
+//       : num > 4
+//         ? 33 : num > 1
+//           ? 50 : 100
+//   return Math.max((100 / num), percentage).toFixed(2) + '%'
+// })
+const width = '640px', height = '480px'
 </script>
 <style lang="scss" scoped>
 .rtc {
@@ -213,26 +232,25 @@ const videoWidth = computed<string>(() => {
   .rtc-main {
     $margin: 24px;
     $height: calc(var(--main-height) - 32px - $margin * 3);
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
     height: $height;
-    overflow-y: auto;
     margin: 0 0 $margin 0;
-    .video-body {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-content: center;
-      height: 100%;
-      .video-box {
-        $padding: 5px;
-        width: v-bind(videoWidth);
-        padding: $padding;
-        video {
-          width: 100%;
-          max-height: calc($height - 2 * $padding);
-          border-radius: 8px;
-          aspect-ratio: v-bind(aspectRatio);
-        }
+    overflow-y: auto;
+    .video-box {
+      $padding: 5px;
+      // width: v-bind(width);
+      // height: v-bind(height);
+      padding: $padding;
+      text-align: center;
+      // aspect-ratio: v-bind(aspectRatio);
+      video {
+        width: v-bind(width);
+        height: v-bind(height);
+        border-radius: 8px;
+        // aspect-ratio: v-bind(aspectRatio);
       }
     }
   }

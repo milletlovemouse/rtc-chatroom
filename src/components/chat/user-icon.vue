@@ -7,7 +7,7 @@
       background: '#2b2b2b',
     }"
   >
-    <UserOutlined style="font-size: 35em"/>
+    <UserOutlined v-bind="$attrs" style="font-size: 35em"/>
   </div>
 </template>
 <script lang="ts" setup>

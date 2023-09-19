@@ -2,7 +2,7 @@
   <div class="chat-join">
     <div class="video-box">
       <video ref="video" v-if="props.stream" :srcObject="props.stream"></video>
-      <UserIcon v-else/>
+      <UserIcon :style="{ aspectRatio }" v-else/>
     </div>
     <form ref="form" class="form">
       <div class="input-box">
@@ -20,11 +20,11 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { nextTick, onMounted, reactive, Ref, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, Ref, ref, watch } from 'vue';
 import UserIcon from '/@/components/chat/user-icon.vue';
 
 const props = defineProps<{
-  stream: Ref<MediaStream> | null | undefined
+  stream: MediaStream | null | undefined
 }>()
 const emit = defineEmits<{
   join: [value: {username: string, roomname: string}]
@@ -51,11 +51,21 @@ const join = (e: Event) => {
 onMounted(() => {
   form.value.addEventListener('submit', join)
 })
+
+let aspect_ratio = 1
+const aspectRatio = computed<number>(() => {
+  if (!props.stream) return aspect_ratio
+  const videoTrack = props.stream.getVideoTracks()[0]
+  if (!videoTrack) return aspect_ratio
+  const settings = videoTrack.getSettings()
+  aspect_ratio = settings.aspectRatio
+  return aspect_ratio
+})
 </script>
 <style lang="scss" scoped>
 .chat-join {
   $margin: 24px;
-  $height: calc(var(--main-height) - 32px - $margin * 3);
+  $height: calc(var(--main-height) - 32px - $margin * 2);
   height: $height;
   .video-box {
     display: flex;
@@ -64,9 +74,7 @@ onMounted(() => {
     height: calc(100% - 60px);
     text-align: center;
     video {
-      width: 35em;
       border-radius: 8px;
-      // aspect-ratio: 1;
     }
   }
   .form {
@@ -78,14 +86,14 @@ onMounted(() => {
         width: 240px;
         margin: 0 5px;
         input {
-          color: #fff;
-          caret-color: #fff;
+          // color: #fff;
+          // caret-color: #fff;
           font-size: 1em;
           letter-spacing: 0.005em;
           z-index: 10;
           &:valid ~span, 
           &:focus ~span {
-            color: #000;
+            color: #fff;
             font-size: 1.25em;
             transform: translateY(-35px);
           }
@@ -112,7 +120,7 @@ onMounted(() => {
           bottom: 0;
           width: 100%;
           height: 2px;
-          background: #000;
+          background: #fff;
           border-radius: 4px;
           overflow: hidden;
           transition: 0.5s;
@@ -123,13 +131,13 @@ onMounted(() => {
     input[type="submit"] {
       border: none;
       outline: none;
-      background: #000;
+      background: #fff;
       cursor: pointer;
       font-size: 0.9em;
       border-radius: 4px;
       font-weight: 600;
       width: 100px;
-      color: #fff;
+      color: #000;
       &:active {
         opacity: 0.75;
       }
