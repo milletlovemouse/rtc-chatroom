@@ -5,8 +5,8 @@ import { theme } from 'ant-design-vue';
 
 const defaultData = {
   borderRadius: '4px',
-  // colorPrimary: '#fff',
-  borderColor: '#000',
+  colorPrimary: '#444444',
+  borderColor: '#444',
 };
 const data = ref(defaultData);
 const { token } = theme.useToken();

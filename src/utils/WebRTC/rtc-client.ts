@@ -11,15 +11,28 @@ import { type } from 'os';
 
 const timerTime = 100;
 
+export type Message = {
+  id: string;
+  isSelf: boolean;
+  username: string;
+  HHmmss: string;
+  type: 'file' | 'text';
+  text?: string;
+  fileInfo?: Record<string, any>;
+  avatar: string;
+}
+
 enum MittEventName {
   CONNECTOR_INFO_LIST_CHANGE = "connectorInfoListChange",
   DISPLAY_STREAM_CHANGE = "displayStreamChange",
   LOCAL_STREAM_CHANGE = "localStreamChange",
+  MESSAGE = "message",
 }
 type MittEventType  = {
   'connectorInfoListChange': Pick<ConnectorInfo, 'streamType' | 'connectorId' | 'remoteStream'>[];
   'displayStreamChange': MediaStream,
   'localStreamChange': MediaStream,
+  'message': Message,
 }
 const emitter = mitt<MittEventType>()
 
@@ -33,7 +46,8 @@ enum MessageEventType {
   CLOSE = "close",
   ERROR = "error",
   RECONNECT = "reconnect",
-  RECONNECT_WORK = "reconnectWork"
+  RECONNECT_WORK = "reconnectWork",
+  CHAT = "chat",
 }
 
 enum UserState {
@@ -55,7 +69,7 @@ enum DatachannelEvent {
   MESSAGE = 'message'
 }
 
-type MessageDataType = 'offer' | 'answer' | 'icecandidate' | 'getOffer' | 'leave' | 'close'
+type MessageDataType = 'offer' | 'answer' | 'icecandidate' | 'getOffer' | 'leave' | 'close' | 'chat'
 type ChannelMessageData = {
   type: MessageDataType,
   data?: {
@@ -140,12 +154,11 @@ export type UserInfo = {
 export default class RTCClient extends SocketClient {
   configuration: RTCConfiguration
   streamConstraints: MediaStreamConstraints
-  // videoTrackConstraints: MediaTrackConstraints
   mediaDevices: MediaDevices;
-  private connectorInfoMap: ConnectorInfoMap = new Map();
-  private userInfo: UserInfo = {
+  userInfo: UserInfo = {
     id: crypto.randomUUID()
   }
+  private connectorInfoMap: ConnectorInfoMap = new Map();
   constructor(options: Options) {
     super(options.socketConfig);
     this.streamConstraints = options.constraints;
@@ -370,7 +383,6 @@ export default class RTCClient extends SocketClient {
     this.sendJoinMessage({
       id: this.userInfo.id,
       ...data,
-      // videoTrackConstraints: this.videoTrackConstraints
     })
     this._state = UserState.JOIN
   }
@@ -486,6 +498,8 @@ export default class RTCClient extends SocketClient {
     const { type, data  } = message
     if (type === MessageEventType.CLOSE) {
       this.closeMessage(data as { connectorId: string })
+    } else if (type === MessageEventType.CHAT) {
+      emitter.emit(MittEventName.MESSAGE, data as Message)
     } else if (
       type === MessageEventType.GET_OFFER ||
       type === MessageEventType.OFFER ||
@@ -671,7 +685,6 @@ export default class RTCClient extends SocketClient {
     memberId: string,
     offer: RTCSessionDescriptionInit,
     streamType?: StreamType,
-    // videoTrackConstraints?: MediaTrackConstraints,
   }) {
     this.sendMessage(MessageEventType.OFFER, data)
   }
@@ -699,7 +712,6 @@ export default class RTCClient extends SocketClient {
     id: string,
     username: string,
     roomname: string,
-    // videoTrackConstraints: MediaTrackConstraints,
   }) {
     this.sendMessage(MessageEventType.JOIN, data)
   }
@@ -720,6 +732,15 @@ export default class RTCClient extends SocketClient {
 
   private sendReconnectMessage(data: UserInfo) {
     this.sendMessage(MessageEventType.RECONNECT, data)
+  }
+
+  public channelSendMesage(data: Message) {
+    this.connectorInfoMap.forEach(connectorInfo => {
+      this.channelSend(connectorInfo, {
+        type: MessageEventType.CHAT,
+        data
+      })
+    })
   }
 
   /**
@@ -744,29 +765,6 @@ export default class RTCClient extends SocketClient {
     this.channelSend(connectorInfo, data)
   }
 
-  // /**
-  //  * 暴露设置视频轨道约束接口
-  //  * @param constraints 
-  //  */
-  // public async setVideoSettings(constraints: MediaTrackConstraints) {
-  //   this.videoTrackConstraints = constraints
-  //   for (const connectorInfo of this.connectorInfoMap.values()) {
-  //     const videoTrack = connectorInfo.receivers.find(receiver => receiver.track.kind === KindEnum.VIDEO)?.track
-  //     await this.setVideoSetting(videoTrack)
-  //   }
-  //   emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, await this.getLocalStream())
-  // }
-  
-  // private async setVideoSetting(videoTrack: MediaStreamTrack) {
-  //   if (!this.videoTrackConstraints || !videoTrack) return
-  //   await videoTrack.applyConstraints(this.videoTrackConstraints)
-  // }
-
-  // private async setSenderVideoSetting(videoTrack: MediaStreamTrack, videoTrackConstraints: MediaTrackConstraints) {
-  //   if (!videoTrackConstraints || !videoTrack) return
-  //   await videoTrack.applyConstraints(videoTrackConstraints)
-  // }
-
   /**
    * 切换设备媒体轨道
    * @param deviceId 
@@ -786,9 +784,11 @@ export default class RTCClient extends SocketClient {
     navigator.mediaDevices.getUserMedia(this.streamConstraints).then(stream => {
       const [track] = kind === KindEnum.AUDIO ? stream.getAudioTracks() : stream.getVideoTracks()
       const localStream = this.mediaDevices.localStream
-      const [localTrack] = KindEnum.AUDIO ? localStream.getAudioTracks() : localStream.getVideoTracks()
-      this.mediaDevices.localStream.removeTrack(localTrack)
-      this.mediaDevices.localStream.addTrack(track)
+      if (localStream) {
+        const [localTrack] = KindEnum.AUDIO ? localStream.getAudioTracks() : localStream.getVideoTracks()
+        this.mediaDevices.localStream.removeTrack(localTrack)
+        this.mediaDevices.localStream.addTrack(track)
+      }
       this.connectorInfoMap.forEach(async connectorInfo => {
         const { streamType, webrtc } = connectorInfo
         const pc = webrtc.peerConnection
@@ -821,12 +821,14 @@ export default class RTCClient extends SocketClient {
   public deviceSwitch(state: boolean, kind: Kind) {
     navigator.mediaDevices.getUserMedia(this.streamConstraints).then(stream => {
       const [track] = kind === KindEnum.AUDIO ? stream.getAudioTracks() : stream.getVideoTracks()
-      if (state) {
-        this.mediaDevices.localStream.addTrack(track)
-      } else {
-        const localStream = this.mediaDevices.localStream
-        const [localTrack] = kind === KindEnum.AUDIO ? localStream.getAudioTracks() : localStream.getVideoTracks()
-        this.mediaDevices.localStream.removeTrack(localTrack)
+      const localStream = this.mediaDevices.localStream
+      if (localStream) {
+        if (state) {
+          localStream.addTrack(track)
+        } else {
+          const [localTrack] = kind === KindEnum.AUDIO ? localStream.getAudioTracks() : localStream.getVideoTracks()
+          localStream.removeTrack(localTrack)
+        }
       }
       this.connectorInfoMap.forEach(async connectorInfo => {
         const { streamType, webrtc } = connectorInfo

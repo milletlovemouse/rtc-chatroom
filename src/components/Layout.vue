@@ -22,7 +22,7 @@
         style="--main-height: calc(100vh - 70px - 64px - 24px);"
         :style="{ 
           margin: '24px 16px 0',
-          padding: '24px',
+          padding: '5px',
           background: '#2b2b2b' ,
           minHeight: 'var(--main-height)',
           borderRadius: '10px'

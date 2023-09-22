@@ -52,15 +52,23 @@
       &nbsp;
       <a-button
         @click="dispalyEnabledToggle"
-        :icon="h(Icon, {class: 'anticon'}, () => h(props.modelValue.dispalyEnabled ? DeviceDesktopOff : DeviceDesktop))"
+        :icon="h(Icon, {class: 'anticon', style: { fontSize }}, () => h(props.modelValue.dispalyEnabled ? DeviceDesktopOff : DeviceDesktop))"
         type="primary"
       >
         {{ props.modelValue.dispalyEnabled ? '取消共享' : '共享屏幕' }}
       </a-button>
       &nbsp;
+      <a-button
+        shape="circle"
+        type="primary"
+        :icon="h(Icon, {class: 'anticon'}, () => h(ChatboxEllipsesOutline))"
+        @click="chatBoxToggle"
+        >
+      </a-button>
+      &nbsp;
       <a-button 
         @click="exit"
-        :icon="h(Icon, {class: 'anticon'}, () => h(ExitToAppFilled))"
+        :icon="h(Icon, {class: 'anticon', style: { fontSize }}, () => h(ExitToAppFilled))"
         type="primary"
         danger
       >
@@ -76,6 +84,7 @@ import { Icon } from '@vicons/utils'
 import { Video48Regular, VideoOff48Regular, Video48Filled } from '@vicons/fluent';
 import { DeviceDesktop, DeviceDesktopOff } from '@vicons/tabler'
 import { ExitToAppFilled, VideoSettingsOutlined } from '@vicons/material'
+import { ChatboxEllipsesOutline } from '@vicons/ionicons5'
 import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
 
 type Resolution = 2160 | 1440 | 1080 | 720 | 480 | 360 | 240 | 144 | 0
@@ -101,6 +110,7 @@ const emit = defineEmits<{
   audioChange: [value: string],
   cameraChange: [value: string],
   resolutionChange: [value: MediaTrackConstraints],
+  chatBoxToggle: [value: boolean],
   exit: [],
 }>()
 
@@ -187,10 +197,23 @@ const resolutionChange = (resolution: number[]) => {
   emit('resolutionChange', createConstraints(resolution))
 }
 
+let open = false
+const chatBoxToggle = () => {
+  open = !open
+  emit('chatBoxToggle', open)
+}
+
 const exit = () => {
   emit('exit')
 }
 
+function reset() {
+  open = false
+}
+
+defineExpose({
+  reset
+})
 function createConstraints(resolution: number[]): MediaTrackConstraints {
   const [r, aspectRatio] = resolution
   if (r === 0) {

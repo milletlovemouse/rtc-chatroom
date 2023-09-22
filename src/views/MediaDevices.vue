@@ -1,41 +1,47 @@
 <template lang="">
   <div class="rtc">
-    <template v-if="!isInRoom">
-      <Join :stream="localStream" @join="join" />
-    </template>
-    <template v-else>
-      <div class="rtc-main">
-        <div class="video-box" v-if="localStream">
-          <video ref="video" :srcObject="localStream"></video>
+    <div class="rtc-body" :class={open}>
+      <template v-if="!isInRoom">
+        <Join :stream="localStream" @join="join" />
+      </template>
+      <template v-else>
+        <div class="rtc-content">
+          <div class="video-box" v-if="localStream">
+            <video ref="video" :srcObject="localStream"></video>
+          </div>
+          <div class="video-box" v-if="displayStream">
+            <video ref="displayVideo" :srcObject="localStream"></video>
+          </div>
+          <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.id">
+            <video ref="videoList" :srcObject="connectorInfo.remoteStream"></video>
+          </div>
         </div>
-        <div class="video-box" v-if="displayStream">
-          <video ref="displayVideo" :srcObject="localStream"></video>
-        </div>
-        <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.id">
-          <video ref="videoList" :srcObject="connectorInfo.remoteStream"></video>
-        </div>
-      </div>
-    </template>
-    <div class="rtc-footer">
-      <device-select
-        v-model="deviceInfo"
-        :state="isInRoom"
-        @audioChange="audioChange"
-        @cameraChange="cameraChange"
-        @audioDisabledToggle="audioDisabledToggle"
-        @cameraDisabledToggle="cameraDisabledToggle"
-        @dispalyEnabledToggle="shareDisplayMedia"
-        @resolutionChange="resolutionChange"
-        @exit="exit" />
-    </div> 
+      </template>
+      <div class="rtc-tool">
+        <device-select
+          ref="deviceSelect"
+          v-model="deviceInfo"
+          :state="isInRoom"
+          @audioChange="audioChange"
+          @cameraChange="cameraChange"
+          @audioDisabledToggle="audioDisabledToggle"
+          @cameraDisabledToggle="cameraDisabledToggle"
+          @dispalyEnabledToggle="shareDisplayMedia"
+          @resolutionChange="resolutionChange"
+          @chatBoxToggle="chatBoxToggle"
+          @exit="exit" />
+      </div> 
+    </div>
+    <Chat ref="chat" :open="open" />
   </div>
 </template>
 <script lang="ts" setup>
-import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, onUnmounted, computed, Ref, shallowReactive, onBeforeUnmount } from 'vue';
+import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, onUnmounted, computed, Ref, shallowReactive, onBeforeUnmount, provide } from 'vue';
 import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
 import RTCClient, { ConnectorInfoMap, ConnectorInfo } from '/@/utils/WebRTC/rtc-client';
 import { onError } from '../utils/WebRTC/message';
 import DeviceSelect, { ModelValue } from '/@/components/chat/DeviceSelect.vue';
+import Chat from '/@/components/chat/Chat.vue';
 import Join from '/@/components/chat/Join.vue';
 
 const isInRoom = ref<boolean>(false)
@@ -55,8 +61,13 @@ const deviceInfo = ref<ModelValue>({
   dispalyEnabled: false
 })
 
+// const host = 'wss://' + window.location.hostname;
+const host = 'https://124.71.32.191'
+// const host = 'https://192.168.50.149'
+const port = 3001
+
 const join = (userInfo: { username: string, roomname: string }) => {
-  fetch(`/api/checkUsername?${new URLSearchParams(userInfo).toString()}`, { method: 'GET' })
+  fetch(`${host}:${port}/checkUsername?${new URLSearchParams(userInfo).toString()}`, { method: 'GET' })
     .then(response => response.json())
     .then(async data => {
       if (!data.isRepeat) {
@@ -72,10 +83,6 @@ const join = (userInfo: { username: string, roomname: string }) => {
       onError('检查用户名失败')
     })
 }
-
-// const host = 'ws://' + window.location.hostname;
-const host = 'ws://192.168.50.144'
-const port = 3000
 
 const memberList = ref<Pick<ConnectorInfo, "streamType" | "connectorId" | "remoteStream">[]>([])
 const videoList = ref<HTMLVideoElement[]>([])
@@ -103,6 +110,8 @@ let rtc = new RTCClient({
     port,
   }
 })
+
+provide('rtc', rtc)
 
 rtc.on('connectorInfoListChange', (data) => {
   console.log('onConnectorInfoListChange', data);
@@ -180,10 +189,20 @@ const resolutionChange = (constraints: MediaTrackConstraints) => {
   // rtc.setVideoSettings(constraints)
 }
 
+const open = ref(false)
+const chat = ref(null)
+const deviceSelect = ref(null)
+const chatBoxToggle = (value: boolean) => {
+  open.value = value
+}
+
 // 退出房间
 function exit() {
   rtc.leave()
   isInRoom.value = false
+  open.value = false
+  chat.value.clearMessage()
+  deviceSelect.value.reset()
 }
 
 const close = (event: Event) => {
@@ -201,57 +220,74 @@ onBeforeUnmount(() => {
   window.removeEventListener('unload', close);
 })
 
-// let aspect_ratio = 1
-// const aspectRatio = computed<number>(() => {
-//   if (!localStream.value) return aspect_ratio
-//   const videoTrack = localStream.value.getVideoTracks()[0]
-//   if (!videoTrack) return aspect_ratio
-//   const settings = videoTrack.getSettings()
-//   aspect_ratio = settings.aspectRatio
-//   return aspect_ratio
+const columns = computed(() => {
+  const num = memberList.value.length + 1
+  return Math.min(Math.ceil(Math.sqrt(num)), 4)
+})
+
+const rows = computed(() => {
+  const num = memberList.value.length + 1
+  return Math.ceil(num / columns.value)
+})
+
+const cloWidth = computed(() => {
+  return (100 / columns.value).toFixed(2) + '%'
+})
+
+const rowHeight = computed(() => {
+  const num = memberList.value.length + 1
+  if (num > 16) return '25%'
+  return (100 / rows.value).toFixed(2) + '%'
+})
+
+// const overflow = computed(() => {
+//   const num = memberList.value.length + 1
+//   if (num > 16) return 'scroll'
+//   return 'hidden'
 // })
 
-// const videoWidth = computed<string>(() => {
-//   let num = memberList.value.length
-//   if (localStream.value) num++
-//   if (displayStream.value) num++
-//   const percentage = 
-//     num > 6
-//       ? 25 
-//       : num > 4
-//         ? 33 : num > 1
-//           ? 50 : 100
-//   return Math.max((100 / num), percentage).toFixed(2) + '%'
-// })
-const width = '640px', height = '480px'
 </script>
 <style lang="scss" scoped>
 .rtc {
   position: relative;
   height: 100%;
-  .rtc-main {
-    $margin: 24px;
-    $height: calc(var(--main-height) - 32px - $margin * 3);
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    height: $height;
-    margin: 0 0 $margin 0;
-    overflow-y: auto;
-    .video-box {
-      $padding: 5px;
-      // width: v-bind(width);
-      // height: v-bind(height);
-      padding: $padding;
-      text-align: center;
-      // aspect-ratio: v-bind(aspectRatio);
-      video {
-        width: v-bind(width);
-        height: v-bind(height);
-        border-radius: 8px;
-        // aspect-ratio: v-bind(aspectRatio);
+  $width: 500px;
+  $margin: 24px;
+  $padding: 5px;
+  $height: calc(var(--main-height) - 32px - $margin * 3);
+  .rtc-body {
+    width: 100%;
+    float: left;
+    transition: all 0.5s;
+    &.open {
+      width: calc(100% - 500px);
+    }
+    .rtc-content {
+      display: grid;
+      grid-template-columns: repeat(v-bind(columns), v-bind(cloWidth));
+      grid-template-rows: repeat(v-bind(rows), v-bind(rowHeight));
+      width: 100%;
+      height: $height;
+      margin: 0 0 $margin 0;
+      overflow-y: auto;
+      scrollbar-width: none;
+      &::-webkit-scrollbar { 
+        width: 0 !important;
       }
+      .video-box {
+        padding: $padding;
+        video {
+          width: 100%;
+          height: 100%;
+          border-radius: 8px;
+          object-fit: cover;
+        }
+      }
+    }
+    &::after {
+      content: "";
+      clear: both;
+      display: block;
     }
   }
 }
