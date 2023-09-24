@@ -21,7 +21,7 @@ import { inject, reactive, ref } from 'vue';
 import { Icon } from '@vicons/utils'
 import { ImageOutline } from "@vicons/ionicons5"
 import { DriveFileMoveRound } from '@vicons/material'
-import { fileAndBlobToBase64, fileToBlob } from '/@/utils/fileUtils';
+import { base64ToFile, fileAndBlobToBase64, fileToBlob, saveFile, sliceFileAndBlobToArrayBuffer, sliceFileAndBlobToBase64, sliceFileOrBlob } from '/@/utils/fileUtils';
 import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { formatDate } from '/@/utils/formatDate';
 import getFileTypeImage from '/@/utils/file-type-image';
@@ -48,6 +48,7 @@ const rtc = inject<RTCClient>('rtc')
 rtc.on('message', async (message: MessageItem) =>{
   message.isSelf = false
   messageList.push(message)
+  console.log(message);
 })
 
 const inputValue = ref('')
@@ -56,14 +57,14 @@ let messageList = reactive<MessageItem[]>([])
 const selectImageConfig = {
   multiple: true,
   accept: ["image/*"],
-  callback: handleBatchImport,
+  callback: sendFileMessage,
   max: 1024 * 1024 * 10,
 }
 
 const selectFileConfig = {
   multiple: true,
   accept: ["*/*"],
-  callback: handleBatchImport,
+  callback: sendFileMessage,
   max: 1024 * 1024 * 1024,
 }
 
@@ -85,7 +86,7 @@ function sendMessage() {
   inputValue.value = ''
 }
 
-async function handleBatchImport(files: File[], err: Error, inputFiles: File[]) {
+async function sendFileMessage(files: File[], err: Error, inputFiles: File[]) {
   err && console.error(err);
   const { username } = rtc.userInfo
   const date = new Date
@@ -100,12 +101,14 @@ async function handleBatchImport(files: File[], err: Error, inputFiles: File[]) 
       fileInfo: await getFileInfo(file),
       avatar: createAvatar(username[0])
     }
+    console.log(messageItem);
     messageList.push(messageItem)
     rtc.channelSendMesage(messageItem)
+    delete messageItem.fileInfo.chunks
   })
 }
 
-async function getFileInfo(file: File | Blob) {
+async function getFileInfo(file: File) {
   const { name, size, type } = file
   const kb = 1024
   const mb = 1024 * kb
@@ -116,14 +119,14 @@ async function getFileInfo(file: File | Blob) {
       : (size / mb).toFixed(2) + 'MB'
     : (size / gb).toFixed(2) + 'GB';
   let url = getFileTypeImage(name)
-  if (type.match('image')) {
-    url = await fileAndBlobToBase64(file)
-  }
+  let chunks = await sliceFileAndBlobToBase64(file, 180 * 1024)
   return {
     name,
     size: formatSize,
     type,
     file,
+    FQ: chunks.length,
+    chunks,
     url
   }
 }

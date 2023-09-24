@@ -4,13 +4,13 @@
       <video 
         controls
         :title="props.fileInfo.name"
-        :srcObject="props.fileInfo.file"
+        :src="srcObject"
       ></video>
     </div>
     <div class="img-box" v-else>
       <img 
         :title="props.fileInfo.name"
-        :src="props.fileInfo.url"
+        :src="srcObject"
         :alt="props.fileInfo.name"
       />
       <div>
@@ -32,8 +32,14 @@ const isVideo = computed(() => {
 const isImage = computed(() => {
   return props.fileInfo.type.match('image')
 })
-</script>
 
+const srcObject = computed(() => {
+  if(!isVideo.value && !isImage.value) {
+    return props.fileInfo.url
+  }
+  return URL.createObjectURL(props.fileInfo.file)
+})
+</script>
 <style lang="scss">
 .message-file {
   .video-box {

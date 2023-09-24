@@ -1,4 +1,5 @@
 import mitt from 'mitt'
+import deepcopy from "deepcopy"
 import SocketClient from "../socket-client";
 import WebRTC from "./WebRTC";
 import MediaDevices from "../MediaDevices/mediaDevices";
@@ -7,7 +8,7 @@ import { debounce } from '../util'
 import observer from '../observer';
 import CustomEventTarget from '../event';
 import { onError } from './message'
-import { type } from 'os';
+import { sliceBase64ToFile } from '../fileUtils';
 
 const timerTime = 100;
 
@@ -18,8 +19,36 @@ export type Message = {
   HHmmss: string;
   type: 'file' | 'text';
   text?: string;
-  fileInfo?: Record<string, any>;
+  fileInfo?: {
+    name: string;
+    size: string;
+    type: string;
+    url: string;
+    FQ: number;
+    file: File;
+    chunks: string[];
+  };
   avatar: string;
+}
+
+export type FileMessageData = {
+  id: string;
+  chunk: string;
+}
+
+export enum DatachannelReadyState {
+  CONNECTING = 'connecting',
+  OPEN = 'open',
+  CLOSING = 'closing',
+  CLOSED = 'closed',
+}
+
+export type Datachannel = {
+  readyState: DatachannelReadyState;
+  bufferedAmount: number;
+  bufferedAmountLowThreshold: number;
+  send(data: string): void;
+  close(): void;
 }
 
 enum MittEventName {
@@ -48,6 +77,7 @@ enum MessageEventType {
   RECONNECT = "reconnect",
   RECONNECT_WORK = "reconnectWork",
   CHAT = "chat",
+  FILE = "file",
 }
 
 enum UserState {
@@ -69,7 +99,7 @@ enum DatachannelEvent {
   MESSAGE = 'message'
 }
 
-type MessageDataType = 'offer' | 'answer' | 'icecandidate' | 'getOffer' | 'leave' | 'close' | 'chat'
+type MessageDataType = 'offer' | 'answer' | 'icecandidate' | 'getOffer' | 'leave' | 'close' | 'chat' | 'file'
 type ChannelMessageData = {
   type: MessageDataType,
   data?: {
@@ -131,8 +161,8 @@ export type ConnectorInfo = {
   senders?: RTCRtpSender[];
   receivers?: RTCRtpReceiver[];
   transceivers?: RTCRtpTransceiver[];
-  onicecandidate?: (candidate: RTCIceCandidate) => void;
-  ontrack?: (event: RTCTrackEvent) => void;
+  messageList: Record<string, Message>;
+  chunks: Record<string, string[]>;
 }
 export type ConnectorInfoMap = Map<string, ConnectorInfo>
 
@@ -198,7 +228,9 @@ export default class RTCClient extends SocketClient {
       streamType,
       connectorId,
       webrtc,
-      memberId
+      memberId,
+      messageList: {},
+      chunks: {},
     }
 
     if (streamType === StreamTypeEnum.USER) {
@@ -209,7 +241,7 @@ export default class RTCClient extends SocketClient {
 
     if (type === TypeEnum.OFFER) {
       // 创建信息通道
-      webrtc.createDataChannel('chat')
+      this.createDataChannel(webrtc)
       this.bindDataChannelEvent(connectorInfo)
     } else if (type === TypeEnum.ANSWER) {
       // 绑定监听远端创建信息通道事件
@@ -219,6 +251,10 @@ export default class RTCClient extends SocketClient {
     this.bindPeerConnectionEvent(connectorInfo)
     this.connectorInfoMap.set(connectorId, connectorInfo)
     return connectorId
+  }
+
+  private createDataChannel(webrtc: WebRTC) {
+    webrtc.createDataChannel('chat')
   }
 
   public on<K extends keyof MittEventType, Args extends MittEventType[K]>(eventName: K, callback: (args: Args) => void){
@@ -499,13 +535,32 @@ export default class RTCClient extends SocketClient {
     if (type === MessageEventType.CLOSE) {
       this.closeMessage(data as { connectorId: string })
     } else if (type === MessageEventType.CHAT) {
-      emitter.emit(MittEventName.MESSAGE, data as Message)
+      const { id } = data
+      connectorInfo.messageList[id] = data as Message
+      chunksMerge(id)
+    } else if (type === MessageEventType.FILE) { // 接收文件碎片
+      const { id, chunk } = data as FileMessageData
+      const chunks = connectorInfo.chunks[id] = (connectorInfo.chunks[id] || [])
+      chunks.push(chunk)
+      chunksMerge(id)
     } else if (
       type === MessageEventType.GET_OFFER ||
       type === MessageEventType.OFFER ||
       type === MessageEventType.ANSWER
     ) {
       this.reconnectWork(connectorInfo, message, this.channelSend)
+    }
+
+    function chunksMerge(id: string) {
+      const chunks = connectorInfo.chunks[id]
+      const message = connectorInfo.messageList[id]
+      const { FQ, name } = message.fileInfo
+      if (chunks && chunks.length === FQ) {
+        delete connectorInfo.messageList[id]
+        delete connectorInfo.chunks[id]
+        message.fileInfo.file = sliceBase64ToFile(chunks, name)
+        emitter.emit(MittEventName.MESSAGE, message)
+      }
     }
   }
 
@@ -543,8 +598,6 @@ export default class RTCClient extends SocketClient {
     connectorInfo.transceivers = pc.getTransceivers()
     const remoteStream = streams[0]
     connectorInfo.remoteStream = remoteStream
-    // const videoTrack = connectorInfo.receivers.find(receiver => receiver.track.kind === KindEnum.VIDEO)?.track
-    // await this.setVideoSetting(videoTrack)
     this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
@@ -701,9 +754,22 @@ export default class RTCClient extends SocketClient {
 
   private channelSend(connectorInfo: ConnectorInfo, data: ChannelMessageData) {
     const { type, channel, webrtc } = connectorInfo
+    const bufferedAmount = channel?.bufferedAmount ?? webrtc.dataChannel.bufferedAmount
+    if (bufferedAmount >= 15 * 1024 * 1024) {
+      setTimeout(() => this.channelSend(connectorInfo, data), 10)
+      return
+    }
     if (type === TypeEnum.OFFER) {
+      if (webrtc.dataChannel.readyState !== DatachannelReadyState.OPEN) {
+        this.channelSend(connectorInfo, data)
+        return
+      }
       webrtc.dataChannel.send(JSON.stringify(data))
     } else if (type === TypeEnum.ANSWER) {
+      if (channel.readyState !== DatachannelReadyState.OPEN) {
+        this.channelSend(connectorInfo, data)
+        return
+      }
       channel.send(JSON.stringify(data))
     } 
   }
@@ -735,10 +801,25 @@ export default class RTCClient extends SocketClient {
   }
 
   public channelSendMesage(data: Message) {
+    data = deepcopy(data)
+    let chunks = []
+    if (data.type === MessageEventType.FILE) {
+      chunks = data.fileInfo.chunks
+      delete data.fileInfo.chunks
+    }
     this.connectorInfoMap.forEach(connectorInfo => {
       this.channelSend(connectorInfo, {
         type: MessageEventType.CHAT,
         data
+      })
+      chunks.forEach(chunk => {
+        this.channelSend(connectorInfo, {
+          type: MessageEventType.FILE,
+          data: {
+            id: data.id,
+            chunk
+          }
+        })
       })
     })
   }

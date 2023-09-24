@@ -1,5 +1,42 @@
+export function sliceBase64ToFile(base64Str: string | string[], filename: string): File {
+  const blobs = Array.isArray(base64Str) ? base64Str.map(str => base64ToBlob(str)) : [base64ToBlob(base64Str)];
+  const type = blobs[0].type;
+  const blob = new Blob(blobs, { type });
+  return new File([blob], filename, { type: blob.type });
+}
+
+export function base64ToBlob(base64Str: string): Blob {
+  const array = base64Str.split(",");
+  const type = base64Str.split(",")[0].match(/:(.*?);/)[1];
+  const bStr = atob(array[1]);
+  let n = bStr.length;
+  const uint8Array = new Uint8Array(n);
+  while (n--) {
+    uint8Array[n] = bStr.charCodeAt(n);
+  }
+  return new Blob([uint8Array], { type });
+}
+
+export function sliceFileAndBlobToBase64(file: FileOrBlob, chunkSize: number = 1024 * 1024): Promise<string[]> {
+  return Promise.all(sliceFileOrBlob(file, chunkSize).map(blob => fileAndBlobToBase64(blob)));
+}
+
+export function sliceFileAndBlobToArrayBuffer(file: FileOrBlob, chunkSize: number = 1024 * 1024): Promise<ArrayBuffer[]> {
+  return Promise.all(sliceFileOrBlob(file, chunkSize).map(blob => fileAndBlobToArrayBuffer(blob)));
+}
+
+export function sliceFileOrBlob(file: FileOrBlob, chunkSize: number = 1024 * 1024): Blob[] {
+  const chunks: Blob[] = []
+  for (let offset = 0; offset < file.size; offset += chunkSize) {
+    const slice = file.slice(offset, offset + chunkSize);
+    const chunk = new Blob([slice], { type: file.type });
+    chunks.push(chunk)
+  }
+  return chunks
+}
+
 export function base64ToFile(base64Str: string, filename: string): File {
-  if (!filename) filename = "file.png";
+  if (!filename) filename = "filename";
   const array = base64Str.split(",");
   const mime = array[0].match(/:(.*?);/)[1];
   const bStr = atob(array[1]);
@@ -13,20 +50,39 @@ export function base64ToFile(base64Str: string, filename: string): File {
 
 type FileOrBlob = File | Blob;
 
-export function fileAndBlobToBase64(imgData: FileOrBlob): Promise<string> {
+export function fileAndBlobToBase64(file: FileOrBlob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    let imgResult: string;
+    let base64Str: string;
     reader.onload = function () {
-      imgResult = reader.result as string;
+      base64Str = reader.result as string;
     };
     reader.onerror = function (error) {
       reject(error);
     };
     reader.onloadend = function () {
-      resolve(imgResult);
+      const base64String = base64Str.split(',')[1];
+      base64Str = `data:${file.type};base64,${base64String}`;
+      resolve(base64Str);
     };
-    reader.readAsDataURL(imgData);
+    reader.readAsDataURL(file);
+  });
+}
+
+export function fileAndBlobToArrayBuffer(file: FileOrBlob): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    let arraybuffer: ArrayBuffer;
+    reader.onload = function () {
+      arraybuffer = reader.result as ArrayBuffer;
+    };
+    reader.onerror = function (error) {
+      reject(error);
+    };
+    reader.onloadend = function () {
+      resolve(arraybuffer);
+    };
+    reader.readAsArrayBuffer(file);
   });
 }
 
@@ -61,4 +117,12 @@ export function fileToBlob(file: File): Promise<Blob> {
     }
     reader.readAsArrayBuffer(file);
   });
+}
+
+export function saveFile(file: File) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
