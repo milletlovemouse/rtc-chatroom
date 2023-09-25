@@ -34,6 +34,7 @@ export type Message = {
 export type FileMessageData = {
   id: string;
   chunk: string;
+  index: number;
 }
 
 export enum DatachannelReadyState {
@@ -162,7 +163,7 @@ export type ConnectorInfo = {
   receivers?: RTCRtpReceiver[];
   transceivers?: RTCRtpTransceiver[];
   messageList: Record<string, Message>;
-  chunks: Record<string, string[]>;
+  chunks: Record<string, [string, number][]>;
 }
 export type ConnectorInfoMap = Map<string, ConnectorInfo>
 
@@ -539,9 +540,9 @@ export default class RTCClient extends SocketClient {
       connectorInfo.messageList[id] = data as Message
       chunksMerge(id)
     } else if (type === MessageEventType.FILE) { // 接收文件碎片
-      const { id, chunk } = data as FileMessageData
+      const { id, chunk, index } = data as FileMessageData
       const chunks = connectorInfo.chunks[id] = (connectorInfo.chunks[id] || [])
-      chunks.push(chunk)
+      chunks.push([chunk, index])
       chunksMerge(id)
     } else if (
       type === MessageEventType.GET_OFFER ||
@@ -558,7 +559,8 @@ export default class RTCClient extends SocketClient {
       if (chunks && chunks.length === FQ) {
         delete connectorInfo.messageList[id]
         delete connectorInfo.chunks[id]
-        message.fileInfo.file = sliceBase64ToFile(chunks, name)
+        const flieChunks = chunks.sort((a, b) => a[1] - b[1]).map(([chunk]) => chunk)
+        message.fileInfo.file = sliceBase64ToFile(flieChunks, name)
         emitter.emit(MittEventName.MESSAGE, message)
       }
     }
@@ -812,11 +814,12 @@ export default class RTCClient extends SocketClient {
         type: MessageEventType.CHAT,
         data
       })
-      chunks.forEach(chunk => {
+      chunks.forEach((chunk, index) => {
         this.channelSend(connectorInfo, {
           type: MessageEventType.FILE,
           data: {
             id: data.id,
+            index,
             chunk
           }
         })
@@ -954,8 +957,6 @@ export default class RTCClient extends SocketClient {
         ...this.streamConstraints,
         audio: false
       })
-      const videoTracks = localStream.getVideoTracks()
-      // await this.setVideoSetting(videoTracks[0])
       return localStream
     } catch (error) {
       return Promise.reject(error)
