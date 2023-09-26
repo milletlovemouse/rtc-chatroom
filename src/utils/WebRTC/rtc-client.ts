@@ -79,6 +79,7 @@ enum MessageEventType {
   RECONNECT_WORK = "reconnectWork",
   CHAT = "chat",
   FILE = "file",
+  TEXT = "text",
 }
 
 enum UserState {
@@ -536,7 +537,11 @@ export default class RTCClient extends SocketClient {
     if (type === MessageEventType.CLOSE) {
       this.closeMessage(data as { connectorId: string })
     } else if (type === MessageEventType.CHAT) {
-      const { id } = data
+      const { id, type } = data as Message
+      if (type === MessageEventType.TEXT) {
+        emitter.emit(MittEventName.MESSAGE, data as Message)
+        return
+      }
       connectorInfo.messageList[id] = data as Message
       chunksMerge(id)
     } else if (type === MessageEventType.FILE) { // 接收文件碎片
