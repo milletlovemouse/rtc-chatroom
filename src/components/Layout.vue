@@ -3,7 +3,7 @@
     <a-layout-sider v-model:collapsed="collapsed" :trigger="null" collapsible>
       <div class="logo" />
       <a-menu v-model:selectedKeys="selectedKeys" theme="dark" mode="inline">
-        <a-menu-item v-for="router in routerList" :key="router.path" @click="to(router.path)">
+        <a-menu-item v-for="router in routerList" :key="router.title" @click="to(router.component)">
           <component :is='router.icon'></component>
           <span>{{ router.title }}</span>
         </a-menu-item>
@@ -41,29 +41,33 @@
 
 <script lang="ts" setup>
 import { FileTextFilled, CameraFilled } from '@ant-design/icons-vue';
-import { defineAsyncComponent, ref, markRaw, shallowRef  } from 'vue';
+import { defineAsyncComponent, ref, markRaw, shallowRef, AsyncComponentLoader  } from 'vue';
+import Clipboard from '@/views/Clipboard.vue';
+import MediaDevices from '@/views/MediaDevices.vue';
 import {
   UserOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
 } from '@ant-design/icons-vue';
-const selectedKeys = ref<string[]>(['/@/views/Clipboard.vue']);
+const selectedKeys = ref<string[]>(['Clipboard']);
 const collapsed = ref<boolean>(false);
 
-const routerList = ref<any[]>([
-  { title: 'Clipboard', path: '/@/views/Clipboard.vue', icon: FileTextFilled },
-  { title: 'MediaDevices', path: '/@/views/MediaDevices.vue', icon: CameraFilled },
+const routerList = ref([
+  { title: 'Clipboard', component: Clipboard, icon: FileTextFilled },
+  { title: 'MediaDevices', component: MediaDevices, icon: CameraFilled },
 ])
 
 const show = ref<boolean>(false)
 const component = shallowRef(null)
-async function to(url: string) {
-  component.value = defineAsyncComponent(() =>import(url));
+async function to(comp: typeof routerList.value[0]['component']) {
+  component.value = defineAsyncComponent({
+    loader: async () => comp
+  });
   show.value = true
   // console.log(component.value);
 }
 
-to('/@/views/Clipboard.vue')
+to(routerList.value[0].component)
 </script>
 
 <style>
