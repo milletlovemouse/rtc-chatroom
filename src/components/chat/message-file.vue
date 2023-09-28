@@ -53,8 +53,6 @@ const srcObject = computed(() => {
     img {
       width: 100%;
     }
-    span {
-    }
   }
 }
 </style>

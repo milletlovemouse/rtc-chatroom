@@ -86,6 +86,7 @@ import { DeviceDesktop, DeviceDesktopOff } from '@vicons/tabler'
 import { ExitToAppFilled, VideoSettingsOutlined } from '@vicons/material'
 import { ChatboxEllipsesOutline } from '@vicons/ionicons5'
 import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
+import { onError } from '/@/utils/WebRTC/message';
 
 type Resolution = 2160 | 1440 | 1080 | 720 | 480 | 360 | 240 | 144 | 0
 export interface Props {
@@ -97,13 +98,15 @@ export interface Props {
     dispalyEnabled: boolean;
     resolution?: number[]; // 分辨率
   },
-  state: boolean
+  state: boolean,
+  joinDisable: boolean,
 }
 export type ModelValue = Props['modelValue']
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:modelValue': [value: ModelValue];
+  'update:joinDisable': [value: boolean];
   dispalyEnabledToggle: [value: boolean],
   audioDisabledToggle: [value: boolean],
   cameraDisabledToggle: [value: boolean],
@@ -162,12 +165,21 @@ const updataModelValue = (data: Partial<ModelValue>) => {
 // 麦克风设备切换禁用状态
 const audioDisabledToggle = () => {
   const disabled = !props.modelValue.audioDisabled
+  audioDisabledChange(disabled)
+}
+
+function audioDisabledChange(disabled: boolean) {
   updataModelValue({ audioDisabled: disabled })
   emit('audioDisabledToggle', disabled)
 }
+
 // 摄像头设备切换禁用状态
 const cameraDisabledToggle = () => {
   const disabled = !props.modelValue.cameraDisabled
+  cameraDisabledChange(disabled)
+}
+
+function cameraDisabledChange(disabled: boolean) {
   updataModelValue({ cameraDisabled: disabled})
   emit('cameraDisabledToggle', disabled)
 }
@@ -211,9 +223,33 @@ function reset() {
   open = false
 }
 
+function updateDeviceId(tracks: MediaStreamTrack[]) {
+  if (tracks.length === 0) {
+    audioDisabledChange(false)
+    cameraDisabledChange(false)
+  } else if (tracks.length === 1) {
+    if (tracks[0].kind === 'audio') {
+      audioDisabledChange(false)
+    } else if (tracks[0].kind === 'video') {
+      cameraDisabledChange(false)
+    }
+  }
+  for (const track of tracks) {
+    if (track.kind === 'audio'){
+      const deviceId = audioMediaStreamTrackOptions.value.find(input => input.label === track.label)?.deviceId
+      updataModelValue({ audioDeviceId: deviceId })
+    } else if (track.kind === 'video'){
+      const deviceId = cameraMediaStreamTrackOptions.value.find(input => input.label === track.label)?.deviceId
+      updataModelValue({ cameraDeviceId: deviceId })
+    }
+  }
+}
+
 defineExpose({
-  reset
+  reset,
+  updateDeviceId
 })
+
 function createConstraints(resolution: number[]): MediaTrackConstraints {
   const [r, aspectRatio] = resolution
   if (r === 0) {
@@ -255,20 +291,18 @@ async function initDeviceInfo() {
     })
     audioMediaStreamTrackOptions.value = map.get('audioinput') as Options
     cameraMediaStreamTrackOptions.value = map.get('videoinput') as Options
-    for (const track of await mediaDevices.getUserMediaStreamTracks()) {
-      if (track.kind === 'audio'){
-        const deviceId = audioMediaStreamTrackOptions.value.find(input => input.label === track.label)?.deviceId
-        updataModelValue({ audioDeviceId: deviceId })
-      }else if (track.kind === 'video'){
-        const deviceId = cameraMediaStreamTrackOptions.value.find(input => input.label === track.label)?.deviceId
-        updataModelValue({ cameraDeviceId: deviceId })
-      }
-    }
+    const tracks = await mediaDevices.getUserMediaStreamTracks()
+    updateDeviceId(tracks)
+    emit('update:joinDisable', false)
+    initResolution()
   } catch (error) {
-    console.log(error.message);
+    emit('update:joinDisable', true)
+    onError('以阻止页面访问摄像头或者麦克风，应用将无法正常使用')
+    console.error(error.message);
+    setTimeout(initDeviceInfo, 1000)
   }
 }
-initResolution()
+
 initDeviceInfo()
 </script>
 <style lang="scss" scoped>

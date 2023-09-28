@@ -9,6 +9,7 @@ import observer from '../observer';
 import CustomEventTarget from '../event';
 import { onError } from './message'
 import { sliceBase64ToFile } from '../fileUtils';
+import { isObject, isBoolean } from "../util"
 
 const timerTime = 100;
 
@@ -151,6 +152,17 @@ enum KindEnum {
 }
 type Kind = 'audio' | 'video';
 
+enum ControlEnum {
+  ADD = 'add',
+  REMOVE = 'remove',
+}
+type ControlType = 'add' | 'remove'
+
+type SendGetOfferMessageData =  {
+  kind?: Kind,
+  type?: ControlType
+}
+
 export type ConnectorInfo = {
   type: Type;
   streamType: StreamType;
@@ -191,6 +203,8 @@ export default class RTCClient extends SocketClient {
     id: crypto.randomUUID()
   }
   private connectorInfoMap: ConnectorInfoMap = new Map();
+  private audioState = true;
+  private videoState = true;
   constructor(options: Options) {
     super(options.socketConfig);
     this.streamConstraints = options.constraints;
@@ -308,8 +322,13 @@ export default class RTCClient extends SocketClient {
     const localStream = await this.mediaDevices.getUserMedia()
     const audioTracks = localStream.getAudioTracks()
     const videoTracks = localStream.getVideoTracks()
-    console.log('addLocalStream', audioTracks, videoTracks);
-    webrtc.addTrack([...videoTracks, ...audioTracks], localStream)
+    connectorInfo.senders = webrtc.addTrack([...videoTracks, ...audioTracks], localStream)
+    if (!this.audioState) {
+      this.removeTrack(connectorInfo, KindEnum.AUDIO)
+    }
+    if (!this.videoState) {
+      this.removeTrack(connectorInfo, KindEnum.VIDEO)
+    }
   }
   
   /**
@@ -599,12 +618,14 @@ export default class RTCClient extends SocketClient {
    */
   private async ontrack(connectorInfo: ConnectorInfo, event: RTCTrackEvent) {
     const { streams } = event
-    const { peerConnection: pc } = connectorInfo.webrtc
-    connectorInfo.senders = pc.getSenders()
-    connectorInfo.receivers = pc.getReceivers()
-    connectorInfo.transceivers = pc.getTransceivers()
     const remoteStream = streams[0]
+    if (!remoteStream) return
     connectorInfo.remoteStream = remoteStream
+    remoteStream.onremovetrack = this.onremovetrack.bind(this)
+    this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
+  }
+
+  private onremovetrack() {
     this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
@@ -622,8 +643,8 @@ export default class RTCClient extends SocketClient {
         memberId,
         candidate,
       })
+      this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
     }
-    this[MittEventName.CONNECTOR_INFO_LIST_CHANGE]()
   }
 
   /**
@@ -686,7 +707,7 @@ export default class RTCClient extends SocketClient {
     message: ChannelMessageData | ReconnectMessageData,
     send: typeof this.channelSend | typeof this.sendMessage
   ) {
-    const { type, data  } = message
+    const { type, data } = message
     const { peerConnection: pc } = connectorInfo.webrtc
     const sendMessage = (sendMessage: ChannelMessageData) => {
       if (send === this.channelSend) {
@@ -700,6 +721,12 @@ export default class RTCClient extends SocketClient {
       }
     }
     if (type === MessageEventType.GET_OFFER) {
+      if (data) {
+        const { kind, type } = data
+        if (type === ControlEnum.ADD) {
+          pc.addTransceiver(kind)
+        }
+      }
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       sendMessage({
@@ -836,7 +863,7 @@ export default class RTCClient extends SocketClient {
    * 切换设备或设备状态后刷新连接，刷新依赖于RTCDataChannel信息通道
    * @param connectorInfo 
    */
-  private async restartConnector(connectorInfo: ConnectorInfo) {
+  private async restartConnector(connectorInfo: ConnectorInfo, sendGetOfferMessage: SendGetOfferMessageData) {
     const { type, webrtc: { peerConnection: pc } } = connectorInfo
     let data: ChannelMessageData
     if (type === TypeEnum.OFFER) {
@@ -849,9 +876,24 @@ export default class RTCClient extends SocketClient {
         }
       }
     } else if (type === TypeEnum.ANSWER) {
-      data = { type: MessageEventType.GET_OFFER }
+      data = {
+        type: MessageEventType.GET_OFFER,
+        data: sendGetOfferMessage
+      }
     }
     this.channelSend(connectorInfo, data)
+  }
+
+  private addTrack(connectorInfo: ConnectorInfo, track: MediaStreamTrack) {
+    const senders = connectorInfo.webrtc.addTrack(track, this.mediaDevices.localStream)
+    connectorInfo.senders.push(...senders)
+  }
+
+  private removeTrack(connectorInfo: ConnectorInfo, kind: Kind) {
+    const senders = connectorInfo.senders.filter((s) => s.track?.kind === kind);
+    connectorInfo.senders = connectorInfo.senders.filter((s) => s.track?.kind !== kind)
+    console.log(senders);
+    connectorInfo.webrtc.removeTrack(senders)
   }
 
   /**
@@ -860,12 +902,12 @@ export default class RTCClient extends SocketClient {
    * @param kind 
    */
   public replaceTrack(deviceId: string, kind: Kind) {
-    const type = typeof this.streamConstraints[kind]
-    if (type === 'boolean') {
+    const constraint = this.streamConstraints[kind]
+    if (isBoolean(constraint)) {
       this.streamConstraints[kind] = {
         deviceId
       }
-    } else if (type === 'object') {
+    } else if (isObject(constraint)) {
       (this.streamConstraints[kind] as MediaTrackConstraints).deviceId = deviceId
     } else {
       this.streamConstraints[kind] = { deviceId }
@@ -874,21 +916,22 @@ export default class RTCClient extends SocketClient {
       const [track] = kind === KindEnum.AUDIO ? stream.getAudioTracks() : stream.getVideoTracks()
       const localStream = this.mediaDevices.localStream
       if (localStream) {
-        const [localTrack] = KindEnum.AUDIO ? localStream.getAudioTracks() : localStream.getVideoTracks()
+        const [localTrack] = kind === KindEnum.AUDIO ? localStream.getAudioTracks() : localStream.getVideoTracks()
         this.mediaDevices.localStream.removeTrack(localTrack)
         this.mediaDevices.localStream.addTrack(track)
       }
       this.connectorInfoMap.forEach(async connectorInfo => {
         const { streamType, webrtc } = connectorInfo
-        const pc = webrtc.peerConnection
         if (streamType === StreamTypeEnum.DISPLAY || streamType === StreamTypeEnum.REMOTE_DISPLAY){
           return
         }
-        const sender = pc.getSenders().find((s) => s.track?.kind === track?.kind);
         // sender.replaceTrack(track)
-        webrtc.removeTrack(sender)
-        webrtc.addTrack(track, this.mediaDevices.localStream)
-        this.restartConnector(connectorInfo)
+        this.removeTrack(connectorInfo, kind)
+        this.addTrack(connectorInfo, track)
+        this.restartConnector(connectorInfo, {
+          kind,
+          type: ControlEnum.ADD
+        })
       })
     })
   }
@@ -908,6 +951,11 @@ export default class RTCClient extends SocketClient {
    * @param kind 
    */
   public deviceSwitch(state: boolean, kind: Kind) {
+    if (kind === KindEnum.AUDIO) {
+      this.audioState = state
+    } else if (kind === KindEnum.VIDEO) {
+      this.videoState = state
+    }
     navigator.mediaDevices.getUserMedia(this.streamConstraints).then(stream => {
       const [track] = kind === KindEnum.AUDIO ? stream.getAudioTracks() : stream.getVideoTracks()
       const localStream = this.mediaDevices.localStream
@@ -921,18 +969,18 @@ export default class RTCClient extends SocketClient {
       }
       this.connectorInfoMap.forEach(async connectorInfo => {
         const { streamType, webrtc } = connectorInfo
-        const pc = webrtc.peerConnection
         if (streamType === StreamTypeEnum.DISPLAY || streamType === StreamTypeEnum.REMOTE_DISPLAY){
           return
         }
         if (state) {
-          
-          webrtc.addTrack(track, this.mediaDevices.localStream)
+          this.addTrack(connectorInfo, track)
         } else {
-          const sender = pc.getSenders().find((s) => s.track?.kind === track?.kind);
-          webrtc.removeTrack(sender)
+          this.removeTrack(connectorInfo, kind)
         }
-        this.restartConnector(connectorInfo)
+        this.restartConnector(connectorInfo, {
+          kind,
+          type: state ? ControlEnum.ADD : ControlEnum.REMOVE,
+        })
       })
     })
   }

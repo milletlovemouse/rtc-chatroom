@@ -41,7 +41,7 @@
 
 <script lang="ts" setup>
 import { FileTextFilled, CameraFilled } from '@ant-design/icons-vue';
-import { defineAsyncComponent, ref, markRaw, shallowRef, AsyncComponentLoader  } from 'vue';
+import { defineAsyncComponent, ref, markRaw, shallowRef, reactive, shallowReactive  } from 'vue';
 import Clipboard from '@/views/Clipboard.vue';
 import MediaDevices from '@/views/MediaDevices.vue';
 import {
@@ -49,25 +49,26 @@ import {
   MenuUnfoldOutlined,
   MenuFoldOutlined,
 } from '@ant-design/icons-vue';
+
+type Component = ReturnType<typeof defineAsyncComponent>
+
 const selectedKeys = ref<string[]>(['Clipboard']);
 const collapsed = ref<boolean>(false);
 
-const routerList = ref([
+const routerList = shallowReactive([
   { title: 'Clipboard', component: Clipboard, icon: FileTextFilled },
   { title: 'MediaDevices', component: MediaDevices, icon: CameraFilled },
 ])
 
-const show = ref<boolean>(false)
-const component = shallowRef(null)
-async function to(comp: typeof routerList.value[0]['component']) {
-  component.value = defineAsyncComponent({
-    loader: async () => comp
-  });
+const show = shallowRef<boolean>(false)
+const component = shallowRef<Component>(null)
+
+async function to(comp: Component) {
+  component.value = comp
   show.value = true
-  // console.log(component.value);
 }
 
-to(routerList.value[0].component)
+to(routerList[0].component)
 </script>
 
 <style>

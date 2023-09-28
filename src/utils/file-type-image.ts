@@ -1,3 +1,4 @@
+const modules = import.meta.glob('../assets/file-type/*.png', { eager: true })
 /**
  * 获取文件类型
  * @param {String} fileName 文件名
@@ -42,5 +43,5 @@ export function getFileImageName(fileName: string) {
  */
 export default function getFileTypeImage(fileName: string) {
   const url = `../assets/file-type/${getFileImageName(fileName)}`
-  return new URL(url, import.meta.url).href
+  return (modules[url] as { default: string }).default
 }

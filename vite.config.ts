@@ -3,7 +3,6 @@ import vue from '@vitejs/plugin-vue';
 import ViteSvgLoader from 'vite-svg-loader';
 import path from "path";
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
@@ -24,19 +23,18 @@ export default defineConfig({
           return path.replace(/^\/api/, '')
         }
       },
-      '/socket.io': {
-        // target: 'http://localhost:3000',
-        target: 'http://192.168.50.144:3000',
-        rewrite: path => {
-          return path.replace(/^\/socket.io/, '')
-        }
-      }
     }
   },
   build: {
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+          drop_console: true,
+          drop_debugger: true,
+      },
+    },
     rollupOptions: {
       output: {
-        // 将自定义的 HTML 模板关联到输出
         manualChunks: {
           index: ['./index.html'],
         },
@@ -46,7 +44,7 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "/@/styles/variables.scss";` // 你的全局样式文件路径
+        additionalData: `@import "/@/styles/variables.scss";`
       }
     }
   }

@@ -92,3 +92,13 @@ export function throttle<T>(
 
   return _throttle
 }
+
+export const isBoolean = (data: any) => typeof data === 'boolean'
+export const isNumber = (data: any) => typeof data === 'number'
+export const isString = (data: any) => typeof data === 'string'
+export const isFunction = (data: any) => typeof data === 'function'
+
+export const isArray = (data: any) => Array.isArray(data)
+
+export const isType = (data: any, type: string) => toString.call(data) === `[object ${type}]`
+export const isObject = (data: any) => isType(data, 'Object')

@@ -2,18 +2,28 @@
   <div class="rtc">
     <div class="rtc-body" :class={open}>
       <template v-if="!isInRoom">
-        <Join :stream="localStream" @join="join" />
+        <Join :stream="localStream" :joinDisable="joinDisable" @join="join" />
       </template>
       <template v-else>
         <div class="rtc-content">
-          <div class="video-box" v-if="localStream">
-            <video ref="video" :srcObject="localStream"></video>
+          <div class="video-box">
+            <video ref="video" v-if="localStream && localStream.active" :srcObject="localStream"></video>
+            <UserIcon v-else />
           </div>
           <div class="video-box" v-if="displayStream">
             <video ref="displayVideo" :srcObject="localStream"></video>
           </div>
           <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.id">
-            <video ref="videoList" :srcObject="connectorInfo.remoteStream"></video>
+            <video
+              ref="videoList"
+              v-if="connectorInfo.videoActive"
+              :srcObject="connectorInfo.remoteStream"
+            ></video>
+            <UserIcon v-else />
+            <audio
+              v-if="!connectorInfo.videoActive && connectorInfo.audioActive"
+              :srcObject="connectorInfo.remoteStream"
+            ></audio>
           </div>
         </div>
       </template>
@@ -21,6 +31,7 @@
         <device-select
           ref="deviceSelect"
           v-model="deviceInfo"
+          v-model:joinDisable="joinDisable"
           :state="isInRoom"
           @audioChange="audioChange"
           @cameraChange="cameraChange"
@@ -39,10 +50,11 @@
 import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, onUnmounted, computed, Ref, shallowReactive, onBeforeUnmount, provide } from 'vue';
 import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
 import RTCClient, { ConnectorInfoMap, ConnectorInfo } from '/@/utils/WebRTC/rtc-client';
-import { onError } from '../utils/WebRTC/message';
+import { onError } from '/@/utils/WebRTC/message';
 import DeviceSelect, { ModelValue } from '/@/components/chat/DeviceSelect.vue';
 import Chat from '/@/components/chat/Chat.vue';
 import Join from '/@/components/chat/Join.vue';
+import UserIcon from '/@/components/chat/user-icon.vue';
 
 const isInRoom = ref<boolean>(false)
 // 媒体元素
@@ -61,6 +73,8 @@ const deviceInfo = ref<ModelValue>({
   dispalyEnabled: false
 })
 
+const joinDisable = ref<boolean>(true)
+
 // const host = 'wss://' + window.location.hostname;
 const host = 'https://124.71.32.191'
 // const host = 'https://192.168.50.149'
@@ -74,17 +88,36 @@ const join = (userInfo: { username: string, roomname: string }) => {
         isInRoom.value = true
         rtc.join(userInfo)
         await nextTick()
-        video.value.play()
+        video.value?.play()
         return
       }
       onError('房间内用户名已存在')
     })
-    .catch(() => {
+    .catch((err) => {
+      console.error(err);
+      
       onError('检查用户名失败')
     })
 }
 
-const memberList = ref<Pick<ConnectorInfo, "streamType" | "connectorId" | "remoteStream">[]>([])
+const connectorInfoList = ref<Pick<ConnectorInfo, "streamType" | "connectorId" | "remoteStream">[]>([])
+const memberList = computed(() => {
+  return connectorInfoList.value.map((item) => {
+    const audioActive = !!item.remoteStream?.getAudioTracks()?.length
+    const videoActive = !!item.remoteStream?.getVideoTracks()?.length
+    console.log({
+      ...item,
+      audioActive,
+      videoActive
+    });
+    
+    return {
+      ...item,
+      audioActive,
+      videoActive
+    }
+  })
+})
 const videoList = ref<HTMLVideoElement[]>([])
 
 let rtc = new RTCClient({
@@ -115,7 +148,7 @@ provide('rtc', rtc)
 
 rtc.on('connectorInfoListChange', (data) => {
   console.log('onConnectorInfoListChange', data);
-  memberList.value = data
+  connectorInfoList.value = data
 })
 
 rtc.on('displayStreamChange', async (stream) => {
@@ -132,8 +165,9 @@ rtc.on('localStreamChange', async (stream) => {
 })
 
 watch(memberList, async () => {
+  console.log(memberList.value)
   await nextTick()
-  memberList.value.forEach((connectorInfo, index) => {
+  connectorInfoList.value.forEach((connectorInfo, index) => {
     const video = videoList.value[index]
     video?.play()
   })
@@ -221,12 +255,12 @@ onBeforeUnmount(() => {
 })
 
 const columns = computed(() => {
-  const num = memberList.value.length + 1
+  const num = connectorInfoList.value.length + 1
   return Math.min(Math.ceil(Math.sqrt(num)), 4)
 })
 
 const rows = computed(() => {
-  const num = memberList.value.length + 1
+  const num = connectorInfoList.value.length + 1
   return Math.ceil(num / columns.value)
 })
 
@@ -235,7 +269,7 @@ const cloWidth = computed(() => {
 })
 
 const rowHeight = computed(() => {
-  const num = memberList.value.length + 1
+  const num = connectorInfoList.value.length + 1
   if (num > 16) return '25%'
   return (100 / rows.value).toFixed(2) + '%'
 })
@@ -276,6 +310,9 @@ const rowHeight = computed(() => {
       }
       .video-box {
         padding: $padding;
+        display: flex;
+        justify-content: center;
+        align-items: center;
         video {
           width: 100%;
           height: 100%;
