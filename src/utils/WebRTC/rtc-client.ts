@@ -202,6 +202,7 @@ export default class RTCClient extends SocketClient {
   userInfo: UserInfo = {
     id: crypto.randomUUID()
   }
+  readonly messageQueueSize = 1024 * 1024 * 15
   private connectorInfoMap: ConnectorInfoMap = new Map();
   private audioState = true;
   private videoState = true;
@@ -273,12 +274,12 @@ export default class RTCClient extends SocketClient {
     webrtc.createDataChannel('chat')
   }
 
-  public on<K extends keyof MittEventType, Args extends MittEventType[K]>(eventName: K, callback: (args: Args) => void){
-    emitter.on(eventName, callback)
+  public on<K extends keyof MittEventType, Args extends MittEventType[K]>(type: K, listener: (args: Args) => void){
+    emitter.on(type, listener)
   }
 
-  public off(eventName: keyof MittEventType, callback: (...args: any[]) => void){
-    emitter.off(eventName, callback)
+  public off(type: keyof MittEventType, listener: (...args: any[]) => void){
+    emitter.off(type, listener)
   }
 
   private bindSocketEvent() {
@@ -788,8 +789,9 @@ export default class RTCClient extends SocketClient {
 
   private channelSend(connectorInfo: ConnectorInfo, data: ChannelMessageData) {
     const { type, channel, webrtc } = connectorInfo
+    const maxMessageSize = webrtc.peerConnection.sctp.maxMessageSize
     const bufferedAmount = channel?.bufferedAmount ?? webrtc.dataChannel.bufferedAmount
-    if (bufferedAmount >= 15 * 1024 * 1024) {
+    if (bufferedAmount + maxMessageSize > this.messageQueueSize) {
       setTimeout(() => this.channelSend(connectorInfo, data), 10)
       return
     }
