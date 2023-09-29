@@ -1,18 +1,128 @@
-# Vue 3 + TypeScript + Vite
+## RTCClient()
+### Syntax
+`new RTCClient(options)`
+### Parameters
+`options`
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+- `configuration:`RTCConfiguration
+- `constraints:`MediaStreamConstraints
+- `socketConfig:`
+   - `host:`域名或者ip
+   - `port:`端口
+```typescript
+import RTCClient from 'rtc-client';
 
-## Recommended IDE Setup
+let rtc = new RTCClient({
+  configuration: {
+    iceServers: [
+      {
+        urls: `turn:stun.l.google.com:19302`,
+        username: "webrtc",
+        credential: "turnserver",
+      },
+    ],
+  },
+  constraints: {
+    audio: deviceInfo.value.audioDisabled ? false : {
+      deviceId: deviceInfo.value.audioDeviceId
+    },
+    video: deviceInfo.value.cameraDisabled ? false : {
+      deviceId: deviceInfo.value.cameraDeviceId
+    }
+  },
+  socketConfig: {
+    host,
+    port,
+  }
+})
+```
+### Instance methods
+#### on（type: string, listener: function）: void
+> 绑定event事件
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+#### off（type: string, listener: function）: void
+> 解除绑定event事件
 
-## Type Support For `.vue` Imports in TS
+#### shareDisplayMedia(): Promise<MediaStream>
+> 开启视频共享
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin) to make the TypeScript language service aware of `.vue` types.
+#### cancelShareDisplayMedia(): void
+> 取消视频共享
 
-If the standalone TypeScript plugin doesn't feel fast enough to you, Volar has also implemented a [Take Over Mode](https://github.com/johnsoncodehk/volar/discussions/471#discussioncomment-1361669) that is more performant. You can enable it by the following steps:
+#### join（data: { username: string, roomname: string }）: void
+> 加入房间
 
-1. Disable the built-in TypeScript Extension
-   1. Run `Extensions: Show Built-in Extensions` from VSCode's command palette
-   2. Find `TypeScript and JavaScript Language Features`, right click and select `Disable (Workspace)`
-2. Reload the VSCode window by running `Developer: Reload Window` from the command palette.
+#### leave(): void
+> 离开房间
+
+#### channelSendMesage(): void
+> 使用RTCDataChannel数据通道发送消息
+
+#### replaceTrack（deviceId: string, kind: 'video' | 'audio'）: void
+> 切换设备媒体轨道
+
+#### replaceVideoTrack（deviceId: string）: void
+> 切换视频媒体轨道
+
+#### replaceAudioTrack（deviceId: string）: void
+> 切换音频媒体轨道
+
+#### deviceSwitch（state: boolean, kind: 'video' | 'audio'）: void
+> 切换设备状态
+
+#### disableAudio(): void
+> 禁用麦克风
+
+#### enableAudio(): void
+> 启用麦克风
+
+#### disableVideo(): void
+> 禁用摄像头
+
+#### enableVideo(): void
+> 启用摄像头
+
+#### getLocalStream(): Promise<MediaStream>
+> 获取本地媒体流
+
+#### getDisplayStream(): Promise<MediaStream>
+> 获取共享屏幕媒体流
+
+#### close(): void
+> 关闭rtcclient实例
+
+### Events
+#### connectorInfoListChange
+> 当与连接的客户端列表发生改变或者更新时触发
+
+```typescript
+rtc.on('connectorInfoListChange', (data) => {
+  console.log('onConnectorInfoListChange', data);
+})
+```
+#### displayStreamChange
+> 当共享屏幕媒体流发生变化时触发
+
+```typescript
+rtc.on('displayStreamChange', async (stream) => {
+  displayStream = stream
+})
+```
+#### localStreamChange
+> 当本地媒体流发生变化时触发
+
+```typescript
+rtc.on('localStreamChange', async (stream) => {
+  localStream = stream
+})
+```
+#### message
+> 当RTCDataChannel数据通道接收到数据时触发
+
+```typescript
+rtc.on('message', async (message: MessageItem) =>{
+  message.isSelf = false
+  messageList.push(message)
+  console.log(message);
+})
+```
