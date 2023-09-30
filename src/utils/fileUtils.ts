@@ -126,3 +126,10 @@ export function saveFile(file: File) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+export function saveFileByUrl(url: string, name: string) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+}

@@ -30,6 +30,7 @@
     "@vicons/tabler": "^0.12.0",
     "@vicons/utils": "^0.1.4",
     "@vitejs/plugin-vue": "^4.2.3",
+    "@vitejs/plugin-vue-jsx": "^3.0.2",
     "deepcopy": "^2.1.0",
     "rimraf": "^5.0.4",
     "terser": "^5.20.0",

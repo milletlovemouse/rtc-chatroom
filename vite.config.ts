@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import vueJsx from '@vitejs/plugin-vue-jsx'
 import ViteSvgLoader from 'vite-svg-loader';
 import path from "path";
 
 export default defineConfig({
   plugins: [
     vue(),
-    ViteSvgLoader()
+    ViteSvgLoader(),
+    vueJsx(),
   ],
   resolve: {
     alias: {

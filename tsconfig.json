@@ -4,6 +4,7 @@
     "target": "esnext",
     "module": "esnext",
     "moduleResolution": "node",
+    "jsx": "preserve",
     "esModuleInterop": true,
     "baseUrl": ".",
     "declaration": false,
