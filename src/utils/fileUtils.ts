@@ -36,7 +36,6 @@ export function sliceFileOrBlob(file: FileOrBlob, chunkSize: number = 1024 * 102
 }
 
 export function base64ToFile(base64Str: string, filename: string): File {
-  if (!filename) filename = "filename";
   const array = base64Str.split(",");
   const mime = array[0].match(/:(.*?);/)[1];
   const bStr = atob(array[1]);

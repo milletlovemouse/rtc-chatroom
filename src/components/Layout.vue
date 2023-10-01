@@ -25,7 +25,8 @@
           padding: '5px',
           background: '#2b2b2b' ,
           minHeight: 'var(--main-height)',
-          borderRadius: '10px'
+          borderRadius: '10px',
+          color: '#fff',
         }"
       >
         <template v-if="show">
@@ -40,10 +41,11 @@
 </template>
 
 <script lang="ts" setup>
-import { FileTextFilled, CameraFilled } from '@ant-design/icons-vue';
+import { FileTextFilled, CameraFilled, PictureFilled } from '@ant-design/icons-vue';
 import { defineAsyncComponent, ref, markRaw, shallowRef, reactive, shallowReactive  } from 'vue';
 import Clipboard from '@/views/Clipboard.vue';
 import MediaDevices from '@/views/MediaDevices.vue';
+import Canvas from '@/views/Canvas.vue';
 import {
   UserOutlined,
   MenuUnfoldOutlined,
@@ -58,6 +60,7 @@ const collapsed = ref<boolean>(false);
 const routerList = shallowReactive([
   { title: 'Clipboard', component: Clipboard, icon: FileTextFilled },
   { title: 'MediaDevices', component: MediaDevices, icon: CameraFilled },
+  { title: 'Canvas', component: Canvas, icon: PictureFilled },
 ])
 
 const show = shallowRef<boolean>(false)

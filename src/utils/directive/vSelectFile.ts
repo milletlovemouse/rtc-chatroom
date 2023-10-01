@@ -79,16 +79,18 @@ function createFileInputEle(
 }
 
 export default function selectFile(app: App) {
-  app.directive("select-file", (el: Element, binding: DirectiveBinding<UploadConfig>) => {
-    el.addEventListener(
-      "click",
-      () => {
-        const { beforeCheck = () => true } = binding.value;
-        if (beforeCheck()) {
-          useUpload(binding.value)
-        }
-      },
-      false
-    );
+  app.directive("select-file", {
+    mounted: (el: Element, binding: DirectiveBinding<UploadConfig>) => {
+      el.addEventListener(
+        "click",
+        () => {
+          const { beforeCheck = () => true } = binding.value;
+          if (beforeCheck()) {
+            useUpload(binding.value)
+          }
+        },
+        false
+      );
+    }
   });
 }

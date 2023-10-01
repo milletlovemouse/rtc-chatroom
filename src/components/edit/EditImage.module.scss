@@ -1,0 +1,100 @@
+.editImage {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 99999999999;
+  .maskLayer {
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: -1;
+  }
+  .editImageContainer {
+    display: inline;
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+    margin: 0 auto;
+    .image {
+      max-height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+    .cut {
+      position: absolute;
+      top: 0px;
+      width: 100%;
+      height: 100%;
+      .region {
+        position: absolute;
+        padding: 1px;
+        border: 3px solid #0060dd;
+        background: transparent;
+        z-index: 1000;
+        .fill {
+          width: 100%;
+          height: 100%;
+          background: transparent;
+          z-index: 1000;
+          cursor: move;
+        }
+      }
+      .top,
+      .bottom,
+      .left,
+      .right {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.5);
+      }
+      .top {
+        width: 100%;
+        top: 0px;
+      }
+      .bottom {
+        width: 100%;
+        bottom: 0px;
+      }
+      .left {
+        top: 0px;
+        bottom: 0px;
+      }
+      .right {
+        right: 0px;
+        top: 0px;
+        bottom: 0px;
+      }
+    }
+    .toolbar {
+      position: absolute;
+      right: 0;
+      display: flex;
+      justify-content: end;
+      gap: 0 5px;
+      margin-top: 5px;
+      padding: 10px;
+      background: #f1f1f1;
+    }
+  }
+  .close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 1.5em;
+    height: 1.5em;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 1.5em;
+    line-height: 1.5em;
+    font-weight: bold;
+    text-align: center;
+    cursor: pointer;
+  }
+}
