@@ -34,7 +34,7 @@ watch(() => props.messageList.length, async () =>{
 </script>
 <style lang="scss">
 .message-list {
-  height: calc(var(--main-height) - 110px);
+  height: var(--main-height);
   $padding: 20px;
   padding: 10px $padding 0;
   overflow-y: auto;

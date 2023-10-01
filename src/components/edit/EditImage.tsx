@@ -1,4 +1,4 @@
-import { defineComponent, Ref, createApp, PropType, reactive, ref, computed, onMounted, App, onUnmounted, watch } from "vue";
+import { defineComponent, Ref, createApp, PropType, reactive, ref, computed, onMounted, App, onUnmounted, watch, nextTick } from "vue";
 import { SaveOutlined, ScissorOutlined, CloseOutlined } from "@ant-design/icons-vue";
 import { getImageOriginalSize } from "./utils";
 import style from "./EditImage.module.scss"
@@ -47,6 +47,7 @@ export const EditImage = defineComponent({
 
     const root = ref<HTMLElement>(null)
     const image = ref<HTMLImageElement>(null)
+    // const canvas = ref<HTMLCanvasElement>(null)
     const cutEl = ref<HTMLElement>(null)
     const region = ref<HTMLElement>(null)
     const topEl = ref<HTMLElement>(null)
@@ -227,6 +228,14 @@ export const EditImage = defineComponent({
       rightEl.value.style.width = parentWidth - width - left + 'px'
       rightEl.value.style.height = height + 'px'
       bottomEl.value.style.height = parentHeight - height - top + 'px'
+      // 测试
+      // const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
+      // const widthScale = originalSize.width / imgWidth
+      // const heightScale = originalSize.height / imgHeight
+      // canvas.value.width = width
+      // canvas.value.height = height
+      // const ctx = canvas.value.getContext('2d')
+      // ctx.drawImage(image.value, left * widthScale, top * heightScale, width * widthScale, height * heightScale, 0, 0, width, height)
     }
 
     let downInfo: {
@@ -265,17 +274,19 @@ export const EditImage = defineComponent({
     }
 
     const cutState = ref(false) // 记录是否开始裁剪
-    const cut = () => {
+    const cut = (e: Event) => {
+      e.stopPropagation()
       cutState.value = !cutState.value
       reset()
     }
-    const save = () => {
-      const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
-      const { width, height } = region.value?.getBoundingClientRect()
-      let left = parseInt(cutInfo.value.left.replace('px', ''))
-      let top = parseInt(cutInfo.value.top.replace('px', ''))
-
+    const save = (e: Event) => {
+      if (!region.value) return
+      e.stopPropagation()
       const canvas = document.createElement('canvas')
+      const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
+      const { width, height } = region.value.getBoundingClientRect()
+      const left = parseInt(cutInfo.value.left.replace('px', '')) * originalSize.width / imgWidth
+      const top = parseInt(cutInfo.value.top.replace('px', '')) * originalSize.height / imgHeight
       const canvasWidth = width * originalSize.width / imgWidth
       const canvasHeight = height * originalSize.height / imgHeight
       canvas.width = width
@@ -283,12 +294,12 @@ export const EditImage = defineComponent({
       const ctx = canvas.getContext('2d')
       ctx.drawImage(image.value, left, top, canvasWidth, canvasHeight, 0, 0, width, height)
       const dataURL = canvas.toDataURL("image/png")
+      cutState.value = false
+      reset()
       props.save({
         url: dataURL,
         file: base64ToFile(dataURL, props.img.file.name)
       })
-      cutState.value = false
-      reset()
     }
     const reset = () => {
       if (!cutState.value) {
@@ -331,6 +342,7 @@ export const EditImage = defineComponent({
         <div class={style.maskLayer}></div>
         <div class={style.editImageContainer}>
           <img ref={image} class={style.image} src={props.img.url} alt={props.img.file.name} />
+          {/* <canvas ref={canvas} class={style.canvas}></canvas> */}
           { cutState.value
             ? <div ref={cutEl} class={style.cut}>
                 <div ref={region} style={regionStyle.value} class={style.region}>
@@ -342,7 +354,7 @@ export const EditImage = defineComponent({
                 <div ref={rightEl} class={style.right}></div>
               </div>
             : null }
-          <div class={style.toolbar}>
+          <div class={style.toolbar} onMousedown={(e) => e.stopPropagation()}>
             <ScissorOutlined title="裁剪" onClick={cut} />
             <SaveOutlined title="保存" onClick={save} />
           </div>

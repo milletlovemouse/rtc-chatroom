@@ -3,17 +3,20 @@ import { useMenu, MenuList } from '@/components/menu/menu';
 
 export default function menu(app: App) {
   const body = document.querySelector("body");
+  const menuMap = new WeakMap(); // 指令接收的参数可能存在更新，顶层作用域代理参数
   let close = () => {} // 顶层作用域，实现只存在一个菜单在页面上
   app.directive("menu", {
-    mounted: (el: Element, binding: DirectiveBinding<MenuList>) => {
+    mounted(el: Element, binding: DirectiveBinding<MenuList>) {
       const menuList = binding.value;
+      menuMap.set(el, menuList);
       el.addEventListener(
         "contextmenu",
         (event: MouseEvent) => {
           event.preventDefault();
           event.stopPropagation();
-          const { x, y } = event
           close()
+          const { x, y } = event
+          const menuList = menuMap.get(el)
           close = useMenu(menuList, {
             display: 'inline-block',
             position: 'absolute',
@@ -24,6 +27,13 @@ export default function menu(app: App) {
         },
         false
       );
+    },
+    updated(el: Element, binding: DirectiveBinding<MenuList>) {
+      const menuList = binding.value;
+      menuMap.set(el, menuList);
+    },
+    unmounted(el: Element) {
+      menuMap.delete(el);
     }
   });
   let state = false // 记录body元素事件状态，菜单作用的element切换时无需频繁注册移除事件

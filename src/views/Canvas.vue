@@ -12,7 +12,7 @@
 </template>
 <script lang="ts" setup>
 import { reactive, nextTick} from 'vue';
-import { useMenu, MenuList, MenuItem } from '@/components/menu/menu';
+import { MenuList, MenuItem } from '@/components/menu/menu';
 import { useEditImage } from '@/components/edit/EditImage';
 import { DownloadOutlined, EditFilled, DeleteFilled } from '@ant-design/icons-vue';
 import { saveFileByUrl } from '@/utils/fileUtils';

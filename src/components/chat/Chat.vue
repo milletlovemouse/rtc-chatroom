@@ -5,19 +5,21 @@
       <Icon class="tool" size="1.75em"><ImageOutline v-select-file="selectImageConfig" /></Icon>
       <Icon class="tool" size="1.75em"><DriveFileMoveRound v-select-file="selectFileConfig" /></Icon>
     </div>
+    <file-list :file-list="fileList" @remove="remove" @updateImage="updateImage"/>
     <div class="send">
       <input
         class="chat-input"
         v-model="inputValue"
         @keyup.enter="sendMessage"
         placeholder="请输入消息内容"
+        :maxlength="maxlength"
       />
       <a-button type="primary" size="large" @click="sendMessage">Send</a-button>
     </div>
   </div>
 </template>
 <script lang="ts" setup>
-import { inject, reactive, ref } from 'vue';
+import { computed, inject, reactive, ref } from 'vue';
 import { Icon } from '@vicons/utils'
 import { ImageOutline } from "@vicons/ionicons5"
 import { DriveFileMoveRound } from '@vicons/material'
@@ -25,9 +27,11 @@ import { base64ToFile, fileAndBlobToBase64, fileToBlob, saveFile, sliceFileAndBl
 import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { formatDate } from '/@/utils/formatDate';
 import getFileTypeImage from '/@/utils/file-type-image';
-import MessageList from '/@/components/chat/message.vue';
+import MessageList from '/@/components/chat/message-list.vue';
+import FileList from '/@/components/file-list.vue';
 import { Message } from '/@/utils/WebRTC/rtc-client';
 
+type FileInfo = Awaited<ReturnType<typeof getFileInfo>>
 type MessageItem = {
   id: string;
   isSelf: boolean;
@@ -35,7 +39,7 @@ type MessageItem = {
   HHmmss: string;
   type: 'file' | 'text';
   text?: string;
-  fileInfo?: Awaited<ReturnType<typeof getFileInfo>>;
+  fileInfo?: FileInfo;
   avatar: ReturnType<typeof createAvatar>;
 }
 
@@ -57,18 +61,39 @@ let messageList = reactive<MessageItem[]>([])
 const selectImageConfig = {
   multiple: true,
   accept: ["image/*"],
-  callback: sendFileMessage,
+  callback: uploadFile,
   max: 1024 * 1024 * 10,
 }
 
 const selectFileConfig = {
   multiple: true,
   accept: ["*/*"],
-  callback: sendFileMessage,
+  callback: uploadFile,
   max: 1024 * 1024 * 1024,
+}
+const maxlength = ref(100)
+const fileMessageList = reactive<MessageItem[]>([])
+const fileList = computed(() => fileMessageList.map(item => item.fileInfo))
+
+function remove(_, index: number) {
+  fileMessageList.splice(index, 1);
+}
+
+function updateImage(img: FileInfo, index: number) {
+  fileMessageList[index].fileInfo = {
+    ...fileMessageList[index].fileInfo,
+    ...img
+  }
 }
 
 function sendMessage() {
+  if (inputValue.value.length > maxlength.value) return
+  sendTextMessage()
+  sendFileMessage()
+}
+
+function sendTextMessage() {
+  if (!inputValue.value.trim().length) return
   const { username } = rtc.userInfo
   const date = new Date
   const { HHmmss } = formatDate(date)
@@ -86,7 +111,16 @@ function sendMessage() {
   inputValue.value = ''
 }
 
-async function sendFileMessage(files: File[], err: Error, inputFiles: File[]) {
+function sendFileMessage() {
+  while(fileMessageList.length) {
+    const messageItem = fileMessageList.shift()
+    rtc.channelSendMesage(messageItem)
+    messageList.push(messageItem)
+    delete messageItem.fileInfo.chunks
+  }
+}
+
+async function uploadFile(files: File[], err: Error, inputFiles: File[]) {
   err && console.error(err);
   const { username } = rtc.userInfo
   const date = new Date
@@ -101,10 +135,7 @@ async function sendFileMessage(files: File[], err: Error, inputFiles: File[]) {
       fileInfo: await getFileInfo(file),
       avatar: createAvatar(username[0])
     }
-    console.log(messageItem);
-    messageList.push(messageItem)
-    rtc.channelSendMesage(messageItem)
-    delete messageItem.fileInfo.chunks
+    fileMessageList.push(messageItem)
   })
 }
 
@@ -146,6 +177,7 @@ function createAvatar(text: string) {
 
 function clearMessage() {
   messageList = reactive([])
+  fileMessageList.splice(0)
 }
 
 defineExpose({
@@ -154,9 +186,11 @@ defineExpose({
 </script>
 <style lang="scss">
 .rtc-chat {
+  display: flex;
+  flex-direction: column;
   position: relative;
   width: 0px;
-  height: inherit;
+  height: calc(var(--main-height) - 2 * 5px);
   border: none;
   border-radius: 8px;
   overflow: hidden;
@@ -185,7 +219,6 @@ defineExpose({
     width: 100%;
     padding: 5px 10px 20px 10px;
     border-top: 2px ;
-    bottom: 10px;
     .chat-input {
       width: 80%;
       padding: 5px 10px;

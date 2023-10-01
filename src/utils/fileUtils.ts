@@ -101,7 +101,7 @@ export function base64ToArrayBuffer(base64Str: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export function fileToBlob(file: File): Promise<Blob> {
+export function fileToBlob(file: File, type?: string): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     let buffer: ArrayBuffer;
@@ -112,7 +112,7 @@ export function fileToBlob(file: File): Promise<Blob> {
       reject(error);
     };
     reader.onloadend = function () {
-      resolve(new Blob([buffer], { type: file.type }));
+      resolve(new Blob([buffer], { type: type || file.type }));
     }
     reader.readAsArrayBuffer(file);
   });
