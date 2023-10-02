@@ -3,7 +3,7 @@ import { useMenu, MenuList } from '@/components/menu/menu';
 
 export default function menu(app: App) {
   const body = document.querySelector("body");
-  const menuMap = new WeakMap(); // 指令接收的参数可能存在更新，顶层作用域代理参数
+  const menuMap = new WeakMap<Element, MenuList>(); // 指令接收的参数可能存在更新，顶层作用域代理参数
   let close = () => {} // 顶层作用域，实现只存在一个菜单在页面上
   app.directive("menu", {
     mounted(el: Element, binding: DirectiveBinding<MenuList>) {

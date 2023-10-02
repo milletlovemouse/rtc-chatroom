@@ -1,8 +1,24 @@
 <template lang="">
   <div v-if="images.length" class="file-box">
     <ul class="file-list">
-      <li v-for="img in images" :key="img.file.name" v-menu="getMenuList(img)">
-        <img :src="img.url" :title="img.file.name" :alt="img.file.name">
+      <li
+        v-for="img in images"
+        :key="img.file.name"
+        v-menu="getMenuList(img)"
+      >
+        <img
+          v-if="isImage(img.file)"
+          v-edit-image="{img, handler: updateImage, once: true}"
+          :src="img.url"
+          :title="img.file.name"
+          :alt="img.file.name"
+        >
+        <img
+          v-else
+          :src="img.url"
+          :title="img.file.name"
+          :alt="img.file.name"
+        >
       </li>
     </ul>
   </div>
@@ -52,13 +68,19 @@ function getMenuList(img: Img) {
 }
 
 type Menu = Merge<MenuItem, {img: Img}>;
+let close = () => {}
 function edit(value: Menu) {
   const { img } = value;
   const index = images.value.findIndex(item => item.file === img.file);
-  const close = useEditImage(img, (newImg) =>{
+  close = useEditImage(img, (newImg) =>{
     emits('updateImage', newImg, index);
     close()
   });
+}
+
+function updateImage(newImg: Img, oldImg: Img) {
+  const index = images.value.findIndex(item => item === oldImg);
+  emits('updateImage', newImg, index);
 }
 
 function remove(value: Menu) {

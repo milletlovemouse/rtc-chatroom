@@ -3,7 +3,12 @@
     <div class="upload">
       <a-button v-select-file="selectFileOption" type="primary">上传图片</a-button>
       <ul class="image-list">
-        <li v-for="img in images" :key="img.file.name" v-menu="menuList.map(menu => ({...menu, img}))">
+        <li
+          v-for="img in images"
+          :key="img.file.name"
+          v-menu="menuList.map(menu => ({...menu, img}))"
+          v-edit-image="{img, handler: updateImage}"
+        >
           <img :src="img.url" :alt="img.file.name">
         </li>
       </ul>
@@ -50,10 +55,13 @@ const selectFileOption = {
 type Menu = Merge<MenuItem, {img: Img}>;
 function edit(value: Menu) {
   const { img } = value;
-  useEditImage(img, (newImg) =>{
-    img.url = newImg.url;
-    img.file = newImg.file;
-  });
+  useEditImage(img, updateImage);
+}
+
+function updateImage(newImg: Img, oldImg: Img) {
+  const index = images.findIndex(item => item === oldImg);
+  images[index].file = newImg.file;
+  images[index].url = newImg.url;
 }
 
 function download(value: Menu) {

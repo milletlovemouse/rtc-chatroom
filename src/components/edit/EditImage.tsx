@@ -1,13 +1,15 @@
-import { defineComponent, Ref, createApp, PropType, reactive, ref, computed, onMounted, App, onUnmounted, watch, nextTick } from "vue";
+import { defineComponent, createApp, PropType, ref, App, onUnmounted, watch, nextTick } from "vue";
 import { SaveOutlined, ScissorOutlined, CloseOutlined } from "@ant-design/icons-vue";
 import { getImageOriginalSize } from "./utils";
 import style from "./EditImage.module.scss"
 import { base64ToFile } from "/@/utils/fileUtils";
 
-type Img = {
+export type Img = {
   file: File,
   url: string
 }
+
+export type Save = (newImg: Img, oldImg: Img ) => void;
 
 enum Position {
   Left,
@@ -32,7 +34,7 @@ export const EditImage = defineComponent({
       default: () => {}
     },
     save: {
-      type: Function as PropType<(x: Img) => void>,
+      type: Function as PropType<Save>,
       default: () => {}
     }
   },
@@ -48,7 +50,6 @@ export const EditImage = defineComponent({
     const root = ref<HTMLElement>(null)
     const image = ref<HTMLImageElement>(null)
     // const canvas = ref<HTMLCanvasElement>(null)
-    const cutEl = ref<HTMLElement>(null)
     const region = ref<HTMLElement>(null)
     const topEl = ref<HTMLElement>(null)
     const bottomEl = ref<HTMLElement>(null)
@@ -65,7 +66,6 @@ export const EditImage = defineComponent({
     let down = false // 记录鼠标按下
     let position = 0 // 记录鼠标落点
     let cutInfo = ref({...cutStyle})
-    const regionStyle = computed(() => ({...cutInfo.value}))
     const ltOverlap = (x: number, y: number) => x < y
     const rbOverlap = (x: number, y: number) => x > y
     const updateCursor = (e: MouseEvent) => {
@@ -191,33 +191,33 @@ export const EditImage = defineComponent({
         width = right - x
         cutInfo.value.left = (x - parentLeft) + 'px'
         cutInfo.value.width = width + 'px'
-        requestAnimationFrame(() => updateMaskStyle(rect, parentRect))
+        updateMaskStyle(rect, parentRect)
       }
       function updateTop() {
         height = bottom - y
         cutInfo.value.top = y - parentTop + 'px'
         cutInfo.value.height = height + 'px'
-        requestAnimationFrame(() => updateMaskStyle(rect, parentRect))
+        updateMaskStyle(rect, parentRect)
       }
       function updateWidth() {
         width = x - left
         cutInfo.value.width = width + 'px'
-        requestAnimationFrame(() => updateMaskStyle(rect, parentRect))
+        updateMaskStyle(rect, parentRect)
       }
       function updateHeight() {
         height = y - top
         cutInfo.value.height = height + 'px'
-        requestAnimationFrame(() => updateMaskStyle(rect, parentRect))
+        updateMaskStyle(rect, parentRect)
       }
     }
 
     function updateMaskStyle(rect: DOMRect, parentRect: DOMRect) {
       const { width: rectWidth, height: rectHeight } = rect
       const { width: parentWidth, height: parentHeight } = parentRect
-      let left = parseInt(cutInfo.value.left.replace('px', ''))
-      let top = parseInt(cutInfo.value.top.replace('px', ''))
-      let width = parseInt(cutInfo.value.width.replace('px', ''))
-      let height = parseInt(cutInfo.value.height.replace('px', ''))
+      let left = Number(cutInfo.value.left.replace('px', ''))
+      let top = Number(cutInfo.value.top.replace('px', ''))
+      let width = Number(cutInfo.value.width.replace('px', ''))
+      let height = Number(cutInfo.value.height.replace('px', ''))
       if (cutInfo.value.width.match('%')) width = rectWidth
       if (cutInfo.value.height.match('%')) height = rectHeight
       leftEl.value.style.top = top + 'px'
@@ -252,15 +252,15 @@ export const EditImage = defineComponent({
       const { width: parentWidth, height: parentHeight } = parentRect
       const { width, height } = rect
 
-      let left = parseInt(cutInfo.value.left.replace('px', ''))
-      let top = parseInt(cutInfo.value.top.replace('px', ''))
+      let left = Number(cutInfo.value.left.replace('px', ''))
+      let top = Number(cutInfo.value.top.replace('px', ''))
       left = Math.max(left +  (x - downX), 0)
       top = Math.max(top +  (y - downY), 0)
       left = Math.min(left, parentWidth - width)
       top = Math.min(top, parentHeight - height)
       cutInfo.value.left = left + 'px'
       cutInfo.value.top = top + 'px'
-      requestAnimationFrame(() => updateMaskStyle(rect, parentRect))
+      updateMaskStyle(rect, parentRect)
     }
 
     function updateDown(e: MouseEvent) {
@@ -272,6 +272,56 @@ export const EditImage = defineComponent({
         document.removeEventListener('mousemove', updateCutInfo)
       }
     }
+
+    function observerImage() {
+      let imageSize: { width?: number, height?: number } = {}
+      let resizeObserver: ResizeObserver
+      watch(() => image.value, () => {
+        if (!image.value) return
+        const { width, height } = image.value.getBoundingClientRect()
+        imageSize = {
+          width,
+          height
+        }
+      })
+      watch(() => region.value, () => {
+        resizeObserver && resizeObserver.disconnect()
+        if (!region.value) {
+          resizeObserver = null
+          return
+        }
+        resizeObserver = new ResizeObserver(([entry]) => {
+          if (!image.value) return
+          nextTick(() => {
+            const { borderBoxSize } = entry
+            const { inlineSize: newWidth, blockSize: newHeight } = borderBoxSize[0]
+            const { width: oldWidth, height: oldHeight } = imageSize
+            imageSize = {
+              width: newWidth,
+              height: newHeight
+            }
+            const left = Number(cutInfo.value.left.replace('px', '')) * newWidth / oldWidth
+            const top = Number(cutInfo.value.top.replace('px', '')) * newHeight / oldHeight
+            cutInfo.value.left = left + 'px'
+            cutInfo.value.top = top + 'px'
+            if (!cutInfo.value.width.match('%')) {
+              const width = Number(cutInfo.value.width.replace('px', '')) * newWidth / oldWidth
+              cutInfo.value.width = width + 'px'
+            }
+            if (!cutInfo.value.height.match('%')) {
+              const height = Number(cutInfo.value.height.replace('px', '')) * newHeight / oldHeight
+              cutInfo.value.height = height + 'px'
+            }
+            const parent = region.value?.parentElement
+            const parentRect = parent?.getBoundingClientRect()
+            const rect = region.value?.getBoundingClientRect()
+            updateMaskStyle(rect, parentRect)
+          })
+        })
+        resizeObserver.observe(image.value)
+      })
+    }
+    observerImage()
 
     const cutState = ref(false) // 记录是否开始裁剪
     const cut = (e: Event) => {
@@ -285,8 +335,8 @@ export const EditImage = defineComponent({
       const canvas = document.createElement('canvas')
       const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
       const { width, height } = region.value.getBoundingClientRect()
-      const left = parseInt(cutInfo.value.left.replace('px', '')) * originalSize.width / imgWidth
-      const top = parseInt(cutInfo.value.top.replace('px', '')) * originalSize.height / imgHeight
+      const left = Number(cutInfo.value.left.replace('px', '')) * originalSize.width / imgWidth
+      const top = Number(cutInfo.value.top.replace('px', '')) * originalSize.height / imgHeight
       const canvasWidth = width * originalSize.width / imgWidth
       const canvasHeight = height * originalSize.height / imgHeight
       canvas.width = width
@@ -299,16 +349,18 @@ export const EditImage = defineComponent({
       props.save({
         url: dataURL,
         file: base64ToFile(dataURL, props.img.file.name)
-      })
+      }, props.img)
     }
     const reset = () => {
       if (!cutState.value) {
         cutInfo.value = {...cutStyle}
         document.removeEventListener('mousedown', updateDown)
+        document.removeEventListener('mouseup', updateDown)
         document.removeEventListener('mousemove', updateCursor)
         root.value.parentElement.style.cursor = 'auto'
       } else {
         document.addEventListener('mousedown', updateDown)
+        document.addEventListener('mouseup', updateDown)
         document.addEventListener('mousemove', updateCursor)
       }
     }
@@ -325,10 +377,6 @@ export const EditImage = defineComponent({
       }
     }
 
-    onMounted(() => {
-      document.addEventListener('mouseup', updateDown)
-    })
-
     onUnmounted(() => {
       document.removeEventListener('mousedown', updateDown)
       document.removeEventListener('mouseup', updateDown)
@@ -344,8 +392,8 @@ export const EditImage = defineComponent({
           <img ref={image} class={style.image} src={props.img.url} alt={props.img.file.name} />
           {/* <canvas ref={canvas} class={style.canvas}></canvas> */}
           { cutState.value
-            ? <div ref={cutEl} class={style.cut}>
-                <div ref={region} style={regionStyle.value} class={style.region}>
+            ? <div class={style.cut}>
+                <div ref={region} style={cutInfo.value} class={style.region}>
                   <div onMousedown={updateMoveDown} onMouseup={updateMoveDown} class={style.fill}></div>
                 </div>
                 <div ref={topEl} class={style.top}></div>
@@ -364,7 +412,7 @@ export const EditImage = defineComponent({
   }
 })
 
-export function useEditImage(img: Ref<Img> | Img, save?: (x: Img) => void){
+export function useEditImage(img: Img | Img, save?: Save){
   const root = document.createElement('div')
   const style = {
     position: 'absolute',
