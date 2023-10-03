@@ -3,6 +3,7 @@ import { SaveOutlined, ScissorOutlined, CloseOutlined } from "@ant-design/icons-
 import { getImageOriginalSize } from "./utils";
 import style from "./EditImage.module.scss"
 import { base64ToFile } from "/@/utils/fileUtils";
+import useResizeObserver from "/@/hooks/useResizeObserver";
 
 export type Img = {
   file: File,
@@ -264,6 +265,7 @@ export const EditImage = defineComponent({
     }
 
     function updateDown(e: MouseEvent) {
+      e.preventDefault()
       e.stopPropagation()
       down = e.type === 'mousedown'
       if (down) {
@@ -275,7 +277,6 @@ export const EditImage = defineComponent({
 
     function observerImage() {
       let imageSize: { width?: number, height?: number } = {}
-      let resizeObserver: ResizeObserver
       watch(() => image.value, () => {
         if (!image.value) return
         const { width, height } = image.value.getBoundingClientRect()
@@ -284,41 +285,43 @@ export const EditImage = defineComponent({
           height
         }
       })
+
+      const resizeObserver = useResizeObserver(image, ([entry]) => {        
+        if (!image.value || !region.value) return
+        nextTick(() => {
+          const { borderBoxSize } = entry
+          const { inlineSize: newWidth, blockSize: newHeight } = borderBoxSize[0]
+          const { width: oldWidth, height: oldHeight } = imageSize
+          imageSize = {
+            width: newWidth,
+            height: newHeight
+          }
+          const left = Number(cutInfo.value.left.replace('px', '')) * newWidth / oldWidth
+          const top = Number(cutInfo.value.top.replace('px', '')) * newHeight / oldHeight
+          cutInfo.value.left = left + 'px'
+          cutInfo.value.top = top + 'px'
+          if (!cutInfo.value.width.match('%')) {
+            const width = Number(cutInfo.value.width.replace('px', '')) * newWidth / oldWidth
+            cutInfo.value.width = width + 'px'
+          }
+          if (!cutInfo.value.height.match('%')) {
+            const height = Number(cutInfo.value.height.replace('px', '')) * newHeight / oldHeight
+            cutInfo.value.height = height + 'px'
+          }
+          const parent = region.value?.parentElement
+          const parentRect = parent?.getBoundingClientRect()
+          const rect = region.value?.getBoundingClientRect()
+          updateMaskStyle(rect, parentRect)
+        })
+      })
+      let disconnect: () => void
       watch(() => region.value, () => {
-        resizeObserver && resizeObserver.disconnect()
+        disconnect && disconnect()
         if (!region.value) {
-          resizeObserver = null
+          disconnect = null
           return
         }
-        resizeObserver = new ResizeObserver(([entry]) => {
-          if (!image.value) return
-          nextTick(() => {
-            const { borderBoxSize } = entry
-            const { inlineSize: newWidth, blockSize: newHeight } = borderBoxSize[0]
-            const { width: oldWidth, height: oldHeight } = imageSize
-            imageSize = {
-              width: newWidth,
-              height: newHeight
-            }
-            const left = Number(cutInfo.value.left.replace('px', '')) * newWidth / oldWidth
-            const top = Number(cutInfo.value.top.replace('px', '')) * newHeight / oldHeight
-            cutInfo.value.left = left + 'px'
-            cutInfo.value.top = top + 'px'
-            if (!cutInfo.value.width.match('%')) {
-              const width = Number(cutInfo.value.width.replace('px', '')) * newWidth / oldWidth
-              cutInfo.value.width = width + 'px'
-            }
-            if (!cutInfo.value.height.match('%')) {
-              const height = Number(cutInfo.value.height.replace('px', '')) * newHeight / oldHeight
-              cutInfo.value.height = height + 'px'
-            }
-            const parent = region.value?.parentElement
-            const parentRect = parent?.getBoundingClientRect()
-            const rect = region.value?.getBoundingClientRect()
-            updateMaskStyle(rect, parentRect)
-          })
-        })
-        resizeObserver.observe(image.value)
+        disconnect = resizeObserver()
       })
     }
     observerImage()

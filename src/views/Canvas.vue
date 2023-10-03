@@ -2,16 +2,24 @@
   <div class="canvas">
     <div class="upload">
       <a-button v-select-file="selectFileOption" type="primary">上传图片</a-button>
-      <ul class="image-list">
+      <scrollbar type="x" class="first-scrollbar">
         <li
           v-for="img in images"
           :key="img.file.name"
           v-menu="menuList.map(menu => ({...menu, img}))"
-          v-edit-image="{img, handler: updateImage}"
         >
           <img :src="img.url" :alt="img.file.name">
         </li>
-      </ul>
+      </scrollbar>
+      <scrollbar class="last-scrollbar">
+        <li
+          v-for="img in images"
+          :key="img.file.name"
+          v-menu="menuList.map(menu => ({...menu, img}))"
+        >
+          <img :src="img.url" :alt="img.file.name">
+        </li>
+      </scrollbar>
     </div>
   </div>
 </template>
@@ -19,6 +27,7 @@
 import { reactive, nextTick} from 'vue';
 import { MenuList, MenuItem } from '@/components/menu/menu';
 import { useEditImage } from '@/components/edit/EditImage';
+import scrollbar from '@/components/scrollbar.vue';
 import { DownloadOutlined, EditFilled, DeleteFilled } from '@ant-design/icons-vue';
 import { saveFileByUrl } from '@/utils/fileUtils';
 import { Merge } from '../utils/type';
@@ -93,19 +102,33 @@ function uploadImage(files: FileList, err: Error, inputFiles: FileList) {
       button {
         margin-bottom: 5px;
       }
-      .image-list {
-        display: flex;
-        flex-wrap: wrap;
-        li {
-          width: 100px;
-          height: 100px;
-          margin-right: 5px;
-          margin-bottom: 5px;
-          img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+      .first-scrollbar {
+        margin-bottom: 10px;
+        // .image-list {
+        //   display: flex;
+        //   flex-wrap: nowrap;
+        //   white-space: nowrap;
+          li {
+            display: inline-block;
+            width: 100px;
+            height: 100px;
+            margin-right: 5px;
+            // margin-bottom: 5px;
+            img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+            }
           }
+        // }
+      }
+      .last-scrollbar {
+        height:  500px;
+        width: 200px;
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
         }
       }
     }
