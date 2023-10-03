@@ -1,9 +1,8 @@
 <template lang="">
-  <div ref="container" class="scroll-container" @wheel="wheel">
+  <div ref="container" :class="className" @wheel="wheel">
     <ul ref="content" @mousedown="onMousedown" class="scroll-content">
       <slot></slot>
     </ul>
-    <!-- 滚动条 -->
     <div ref="scrollBar" class="scroll-bar">
       <div ref="inner" @mousedown="onMousedown" class="scroll-bar-inner">
       </div>
@@ -11,7 +10,7 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import useResizeObserver from '/@/hooks/useResizeObserver';
 
 type Props = {
@@ -43,6 +42,7 @@ function updateScrollBarInner() {
   const type = props.type
   const { width: parentWidth, height: parentHeight } = container.value.getBoundingClientRect()
   const { width, height } = content.value.getBoundingClientRect()
+  // 更新滚动条元素几何信息
   if (type === 'y') {
     const h = Math.min(parentHeight * parentHeight / height, parentHeight)
     inner.value.style.width = '5px'
@@ -57,11 +57,29 @@ function updateScrollBarInner() {
 
   const { x, y } = transform
   if ((x === 0 && y === 0)) return
-  const transformX = transform.x * parentWidth / width
-  const transformY = transform.y * parentHeight / height
-  inner.value.style.transform = `translate(${transformX}px, ${transformY}px)`
+  // 更新滚动条位置
+  let transformX = content.value.style.transform ? Number(content.value.style.transform.replace(/translate\(|px|\)/g, '').split(',')[0]) : 0
+  let transformY = content.value.style.transform ? Number(content.value.style.transform.replace(/translate\(|px|\)/g, '').split(',')[1]) : 0
+  if (type === 'y') {
+    if (height + transformY < parentHeight) {
+      transformY = Math.min(0, parentHeight - height)
+      transform.y = Math.max(0, -transformY * parentHeight / height)
+    } else {
+      transform.y = -transformY * parentHeight / height
+    }
+  } else {
+    if (width + transformX < parentWidth) {
+      transformX = Math.min(0, parentWidth - width)
+      transform.x = Math.max(0, -transformX * parentWidth / width)
+    } else {
+      transform.x = -transformX * parentWidth / width
+    }
+  }
+  content.value.style.transform = `translate(${transformX}px, ${transformY}px)`
+  inner.value.style.transform = `translate(${transform.x}px, ${transform.y}px)`
 }
 
+let disconnectContainer = () => {}, disconnectContent = () => {}
 function initScrollBar() {
   watch(() => props.type, (type) => {
     nextTick(() => {
@@ -74,8 +92,8 @@ function initScrollBar() {
       }
     })
   }, {immediate: true})
-  observerContainer()
-  observerContent()
+  disconnectContainer = observerContainer()
+  disconnectContent = observerContent()
 }
 initScrollBar()
 
@@ -92,6 +110,7 @@ function onMousedown(e: MouseEvent) {
 }
 
 function onMousemove(e: MouseEvent) {
+  // 滑动滚动
   const type = props.type
   const baseNumber = target === inner.value ? 1 : -1
   const { x: oldX, y: oldY } = position
@@ -119,6 +138,7 @@ function onMouseup() {
 }
 
 function wheel(e: WheelEvent) {
+  // 鼠标滚轮滚动
   if (inner.value.style.display === 'none') return
   const type = props.type
   const { width, height } = content.value.getBoundingClientRect()
@@ -137,6 +157,18 @@ function wheel(e: WheelEvent) {
   content.value.style.transform = `translate(${-transformX}px, ${-transformY}px)`
   inner.value.style.transform = `translate(${transform.x}px, ${transform.y}px)`
 }
+
+onUnmounted(() => {
+  disconnectContainer()
+  disconnectContent()
+})
+
+// class计算属性
+const className = computed(() => ({
+  'scroll-container': true,
+  'scroll-container-y': props.type === 'y',
+  'scroll-container-x': props.type === 'x'
+}))
 
 // css计算属性
 const padding_right = computed(() => props.type === 'y' ? '10px' : '0')
@@ -160,7 +192,6 @@ const whiteSpace = computed(() => props.type === 'x' ? 'nowrap' : 'normal')
       background: rgba(0, 0, 0, 0);
       border-radius: 5px;
       cursor: pointer;
-      z-index: 1;
       .scroll-bar-inner {
         background: #fff;
         border-radius: 5px;

@@ -2,7 +2,9 @@
   <div class="canvas">
     <div class="upload">
       <a-button v-select-file="selectFileOption" type="primary">上传图片</a-button>
-      <scrollbar type="x" class="first-scrollbar">
+      &nbsp;
+      <a-button type="primary" @click="toggle">切换滚动条</a-button>
+      <scrollbar :type="types[0]">
         <li
           v-for="img in images"
           :key="img.file.name"
@@ -11,7 +13,7 @@
           <img :src="img.url" :alt="img.file.name">
         </li>
       </scrollbar>
-      <scrollbar class="last-scrollbar">
+      <scrollbar :type="types[1]">
         <li
           v-for="img in images"
           :key="img.file.name"
@@ -92,6 +94,12 @@ function uploadImage(files: FileList, err: Error, inputFiles: FileList) {
   })))
 }
 
+const types = reactive<string[]>(['x', 'y'])
+const toggle = () => {
+  const temp = types[0]
+  types[0] = types[1]
+  types[1] = temp
+}
 </script>
 <style lang="scss">
   .canvas {
@@ -102,28 +110,23 @@ function uploadImage(files: FileList, err: Error, inputFiles: FileList) {
       button {
         margin-bottom: 5px;
       }
-      .first-scrollbar {
+      .scroll-container-x {
         margin-bottom: 10px;
-        // .image-list {
-        //   display: flex;
-        //   flex-wrap: nowrap;
-        //   white-space: nowrap;
-          li {
-            display: inline-block;
-            width: 100px;
-            height: 100px;
-            margin-right: 5px;
-            // margin-bottom: 5px;
-            img {
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-            }
+        li {
+          display: inline-block;
+          width: 100px;
+          height: 100px;
+          margin-right: 5px;
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
           }
-        // }
+        }
       }
-      .last-scrollbar {
-        height:  500px;
+      .scroll-container-y {
+        margin-bottom: 10px;
+        height: 500px;
         width: 200px;
         img {
           width: 100%;
