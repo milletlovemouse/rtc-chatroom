@@ -74,7 +74,15 @@ export function useMenu(menuList: Ref<MenuList> | MenuList, style: Partial<CSSSt
   }
   app = createApp(Menu, { menuList })
   app.mount(root)
+  const { width: bodyW, height: bodyH } = document.body.getBoundingClientRect()
   document.body.appendChild(root)
+  const { left, top, width, height } = root.getBoundingClientRect()
+  if (left + width > bodyW) {
+    root.style.left = `${bodyW - width}px`
+  }
+  if (top + height > bodyH) {
+    root.style.top = `${bodyH - height}px`
+  }
   return close
 }
 
