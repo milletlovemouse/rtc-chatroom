@@ -1,5 +1,5 @@
 <template lang="">
-  <div ref="container" :class="className" @wheel="wheel">
+  <div ref="container" :class="className" @scroll.passive="scroll" @wheel.passive="scroll">
     <ul ref="content" @mousedown="onMousedown" class="scroll-content">
       <slot></slot>
     </ul>
@@ -12,18 +12,49 @@
 <script lang="ts" setup>
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import useResizeObserver from '/@/hooks/useResizeObserver';
+import { Merge } from '@/utils/type';
 
 type Props = {
   type?: 'x' | 'y'
 }
+
+type ScrollRect = {
+  width: number,
+  height: number,
+  scrollWidth: number,
+  scrollHeight: number,
+  scrollLeft: number,
+  scrollTop: number,
+}
+
+export type ScrollEvent = Merge<{
+  type: string,
+  event?: MouseEvent,
+  x: number, // 滚动条X轴滚动距离
+  y: number // 滚动条Y轴滚动距离
+}, ScrollRect>
+
+export type ResizeEvent = Merge<{
+  type: string,
+  entry: ResizeObserverEntry, 
+  x: number,
+  y: number
+}, ScrollRect>
+
 const props = withDefaults(defineProps<Props>(), {
   type: 'y',
 })
+const emits = defineEmits<{
+  scroll: [event: ScrollEvent],
+  resize: [event: ResizeEvent]
+}>()
+
 let target: EventTarget = null
 let position: {
   x?: number,
   y?: number,
 } = {}
+
 let transform: {
   x: number,
   y: number,
@@ -31,14 +62,22 @@ let transform: {
   x: 0,
   y: 0,
 }
+
+let scrollRect: ScrollRect = {
+  width: 0,
+  height: 0,
+  scrollWidth: 0,
+  scrollHeight: 0,
+  scrollLeft: 0,
+  scrollTop: 0,
+}
+
 const container = ref<HTMLElement>(null)
 const content = ref<HTMLElement>(null)
 const scrollBar = ref<HTMLElement>(null)
 const inner = ref<HTMLElement>(null)
 
-const observerContainer = useResizeObserver(container, updateScrollBarInner)
-const observerContent = useResizeObserver(content, updateScrollBarInner)
-function updateScrollBarInner() {
+const updateScrollBarInner: ResizeObserverCallback = ([entry]) => {
   const type = props.type
   const { width: parentWidth, height: parentHeight } = container.value.getBoundingClientRect()
   const { width, height } = content.value.getBoundingClientRect()
@@ -54,31 +93,42 @@ function updateScrollBarInner() {
     inner.value.style.height = '5px'
     inner.value.style.display = w === parentWidth ? 'none' : 'block'
   }
+  scrollRect.scrollWidth = width
+  scrollRect.scrollHeight = height
+  scrollRect.width = parentWidth
+  scrollRect.height = parentHeight
 
   const { x, y } = transform
   if ((x === 0 && y === 0)) return
   // 更新滚动条位置
-  let transformX = content.value.style.transform ? Number(content.value.style.transform.replace(/translate\(|px|\)/g, '').split(',')[0]) : 0
-  let transformY = content.value.style.transform ? Number(content.value.style.transform.replace(/translate\(|px|\)/g, '').split(',')[1]) : 0
+  let scrollLeft = container.value.scrollLeft
+  let scrollTop = container.value.scrollTop
   if (type === 'y') {
-    if (height + transformY < parentHeight) {
-      transformY = Math.min(0, parentHeight - height)
-      transform.y = Math.max(0, -transformY * parentHeight / height)
-    } else {
-      transform.y = -transformY * parentHeight / height
+    if (height - scrollTop < parentHeight) {
+      scrollTop = Math.max(0, height - parentHeight)
+      scrollLeft = 0
     }
   } else {
-    if (width + transformX < parentWidth) {
-      transformX = Math.min(0, parentWidth - width)
-      transform.x = Math.max(0, -transformX * parentWidth / width)
-    } else {
-      transform.x = -transformX * parentWidth / width
+    if (width - scrollLeft < parentWidth) {
+      scrollLeft = Math.max(0, width - parentWidth)
+      scrollTop = 0
     }
   }
-  content.value.style.transform = `translate(${transformX}px, ${transformY}px)`
-  inner.value.style.transform = `translate(${transform.x}px, ${transform.y}px)`
+  container.value.scrollLeft = scrollRect.scrollLeft = scrollLeft
+  container.value.scrollTop = scrollRect.scrollTop = scrollTop
+  if (entry.target === container.value) {
+    emits('resize', {
+      type,
+      entry, 
+      ...transform,
+      ...scrollRect
+    })
+  }
+  
 }
 
+const observerContainer = useResizeObserver(container, updateScrollBarInner)
+const observerContent = useResizeObserver(content, updateScrollBarInner)
 let disconnectContainer = () => {}, disconnectContent = () => {}
 function initScrollBar() {
   watch(() => props.type, (type) => {
@@ -112,51 +162,98 @@ function onMousedown(e: MouseEvent) {
 function onMousemove(e: MouseEvent) {
   // 滑动滚动
   const type = props.type
-  const baseNumber = target === inner.value ? 1 : -1
+  const isInner = target === inner.value
+  const baseNumber = isInner ? 1 : -1
   const { x: oldX, y: oldY } = position
   const { x, y } = e
   position.x = x
   position.y = y
-  const { width, height } = content.value.getBoundingClientRect()
   const { width: parentWidth, height: parentHeight } = container.value.getBoundingClientRect()
-  const { width: innerWidth, height: innerHeight } = inner.value.getBoundingClientRect()
+  const { width, height } = content.value.getBoundingClientRect()
+  let { scrollLeft, scrollTop } = container.value
+  const scaleWidth = isInner ? width / parentWidth : 1
+  const scaleHeight = isInner ? height / parentHeight : 1
+  
   if (type === 'x') {
-    transform.y = 0
-    transform.x = Math.max(Math.min(transform.x + (x - oldX) * baseNumber, parentWidth - innerWidth), 0)
+    scrollLeft = Math.max(Math.min(scrollLeft + (x - oldX) * baseNumber * scaleWidth, width - parentWidth), 0)
+    container.value.scrollLeft = scrollLeft
+    container.value.scrollTop = 0
   } else {
-    transform.x = 0
-    transform.y = Math.max(Math.min(transform.y + (y - oldY) * baseNumber, parentHeight - innerHeight), 0)
+    scrollTop = Math.max(Math.min(scrollTop + (y - oldY) * baseNumber * scaleHeight, height - parentHeight), 0)
+    container.value.scrollTop = scrollTop
+    container.value.scrollLeft = 0
   }
-  const transformX = transform.x * width / parentWidth
-  const transformY = transform.y * height / parentHeight
-  content.value.style.transform = `translate(${-transformX}px, ${-transformY}px)`
-  inner.value.style.transform = `translate(${transform.x}px, ${transform.y}px)`
 }
 
 function onMouseup() {
   document.removeEventListener('mousemove', onMousemove)
 }
 
-function wheel(e: WheelEvent) {
-  // 鼠标滚轮滚动
-  if (inner.value.style.display === 'none') return
+function scroll(e: WheelEvent) {
   const type = props.type
+  // 鼠标滚轮滚动
+  if (inner.value.style.display === 'none' || (type === 'y' && e.type !== 'scroll')) return
+  const stpe = e.deltaY
+  let { scrollLeft, scrollTop } = container.value
   const { width, height } = content.value.getBoundingClientRect()
   const { width: parentWidth, height: parentHeight } = container.value.getBoundingClientRect()
   const { width: innerWidth, height: innerHeight } = inner.value.getBoundingClientRect()
-  const stpe = e.deltaY > 0 ? 20 : -20
-  if (type === 'x') {
-    transform.y = 0
-    transform.x = Math.max(Math.min(transform.x + stpe, parentWidth - innerWidth), 0)
+  if (e.type === 'wheel') {
+    scrollLeft += stpe
+    container.value.scrollLeft = scrollLeft
+    container.value.scrollTop = 0
+    return
   } else {
-    transform.x = 0
-    transform.y = Math.max(Math.min(transform.y + stpe, parentHeight - innerHeight), 0)
+    if (type === 'x') {
+      transform.y = 0
+      transform.x = Math.max(Math.min(scrollLeft * parentWidth / width, parentWidth - innerWidth), 0)
+    } else {
+      transform.x = 0
+      transform.y = Math.max(Math.min(scrollTop * parentHeight / height, parentHeight - innerHeight), 0)
+    }
   }
-  const transformX = transform.x * width / parentWidth
-  const transformY = transform.y * height / parentHeight
-  content.value.style.transform = `translate(${-transformX}px, ${-transformY}px)`
+  scrollBar.value.style.transform = `translate(${scrollLeft}px, ${scrollTop}px)`
   inner.value.style.transform = `translate(${transform.x}px, ${transform.y}px)`
+  scrollRect.scrollLeft = scrollLeft
+  scrollRect.scrollTop = scrollTop
+  scrollRect.width = parentWidth
+  scrollRect.height = parentHeight
+  emits('scroll', {
+    type,
+    ...transform,
+    ...scrollRect
+  })
 }
+
+function scrollTo(top: number, left: number) {
+  setTimeout(() => container.value.scrollTo({
+    top,
+    left,
+    behavior: 'smooth'
+  }), 1)
+}
+
+function scrollToTop() {
+  scrollTo(0, 0)
+}
+function scrollToBottom() {
+  scrollTo(container.value.scrollHeight, 0)
+}
+function scrollToLeft() {
+  scrollTo(0, 0)
+}
+function scrollToRight() {
+  scrollTo(0, container.value.scrollWidth)
+}
+
+defineExpose({
+  get target(): Element { return container.value },
+  scrollToTop,
+  scrollToBottom,
+  scrollToLeft,
+  scrollToRight,
+  scrollTo
+})
 
 onUnmounted(() => {
   disconnectContainer()
@@ -171,6 +268,8 @@ const className = computed(() => ({
 }))
 
 // css计算属性
+const overflow_x = computed(() => props.type === 'x' ? 'scroll' : 'hidden')
+const overflow_y = computed(() => props.type === 'y' ? 'scroll' : 'hidden')
 const padding_right = computed(() => props.type === 'y' ? '10px' : '0')
 const padding_bottom = computed(() => props.type === 'x' ? '10px' : '0')
 const whiteSpace = computed(() => props.type === 'x' ? 'nowrap' : 'normal')
@@ -179,7 +278,12 @@ const whiteSpace = computed(() => props.type === 'x' ? 'nowrap' : 'normal')
   .scroll-container {
     position: relative;
     padding: 0 v-bind(padding_right) v-bind(padding_bottom) 0;
-    overflow: hidden;
+    overflow-x: v-bind(overflow_x);
+    overflow-y: v-bind(overflow_y);
+    scrollbar-width: none;
+    &::-webkit-scrollbar { 
+      width: 0 !important;
+    }
     .scroll-content {
       display: inline-block;
       white-space: v-bind(whiteSpace);

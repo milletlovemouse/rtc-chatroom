@@ -1,6 +1,6 @@
 <template lang="">
   <div v-if="images.length" class="file-box">
-    <ul class="file-list">
+    <scrollbar class="file-list" type="x">
       <li
         v-for="img in images"
         :key="img.file.name"
@@ -20,7 +20,7 @@
           :alt="img.file.name"
         >
       </li>
-    </ul>
+    </scrollbar>
   </div>
 </template>
 <script lang="ts" setup>
@@ -29,6 +29,7 @@ import { computed, reactive } from 'vue';
 import { Merge } from '../utils/type';
 import { useEditImage } from './edit/EditImage';
 import { MenuItem, MenuList } from './menu/menu';
+import scrollbar from '@/components/scrollbar.vue';
 type Img = {
   file: File,
   url: string
@@ -94,21 +95,20 @@ function remove(value: Menu) {
     position: relative;
     width: 100%;
     max-height: 70px;
-  }
-  .file-list {
-    max-height: inherit;
+    margin-top: 5px;
     padding: 0 20px;
-    overflow-y: auto;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { 
-      width: 0 !important;
+    .file-list {
+      .scroll-bar {
+        .scroll-bar-inner {
+          background: #444;
+        }
+      }
     }
     li {
       display: inline-block;
       width: 50px;
       height: 50px;
       margin-right: 5px;
-      margin-bottom: 5px;
       img {
         width: 100%;
         height: 100%;
@@ -116,4 +116,5 @@ function remove(value: Menu) {
       }
     }
   }
+  
 </style>

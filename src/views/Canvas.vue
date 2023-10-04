@@ -104,7 +104,8 @@ const toggle = () => {
 <style lang="scss">
   .canvas {
     $padding: 5px;
-    height: calc(var(--main-height) - 2 * $padding);
+    $height: calc(var(--main-height) - 2 * $padding);
+    height: $height;
     padding: $padding;
     .upload {
       button {
@@ -126,8 +127,8 @@ const toggle = () => {
       }
       .scroll-container-y {
         margin-bottom: 10px;
-        height: 500px;
-        width: 200px;
+        height: max(calc($height - 500px), 0px);
+        width: min(100%, 200px);
         img {
           width: 100%;
           height: 100%;

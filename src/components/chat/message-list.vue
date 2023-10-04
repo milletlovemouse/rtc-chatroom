@@ -1,5 +1,5 @@
 <template lang="">
-  <div ref="scrollbar" class="message-list">
+  <scroll-bar ref="scrollbar" @scroll="scroll" class="message-list">
     <div v-for="message in props.messageList" :key="message.id" :class="{'message-item': true, self: message.isSelf}">
       <div class="message-avatar">
         <img :src="message.avatar"/>
@@ -16,33 +16,58 @@
         </div>
       </div>
     </div>
+  </scroll-bar>
+  <div class="buts">
+    <a-button
+      v-show="showTopButton"
+      class="to-bottom"
+      @click="toBottom"
+      type="primary"
+      shape="circle"
+      :icon="h(Icon, {class: 'anticon'}, () => h(DownToBottom))"
+    />
   </div>
 </template>
 <script lang="ts" setup>
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, computed, h } from 'vue';
 import MessageFile from '/@/components/chat/message-file.vue'
+import ScrollBar, { ScrollEvent } from '@/components/scrollbar.vue';
+import { Icon } from '@vicons/utils'
+import { DownToBottom } from '@vicons/carbon';
 const props = defineProps<{
   messageList: []
 }>()
 
+const showTop = ref(false)
+const showTopButton = computed(() => showTop.value)
 const scrollbar = ref(null)
 
-watch(() => props.messageList.length, async () =>{
-  await nextTick()
-  scrollbar.value.scrollTop = scrollbar.value.scrollHeight
+watch(() => props.messageList.length, () => {
+  toBottom()
 })
+
+function toBottom() {
+  scrollbar.value.scrollToBottom()
+}
+
+function scroll(e: ScrollEvent) {
+  const { scrollTop, scrollHeight, height } = e
+  showTop.value = scrollTop + 100 < scrollHeight - height
+}
 </script>
 <style lang="scss">
 .message-list {
   height: var(--main-height);
   $padding: 20px;
-  padding: 10px $padding 0;
-  overflow-y: auto;
-  scrollbar-width: none;
-  $openWidth: 500px;
-  &::-webkit-scrollbar { 
-    width: 0 !important;
+  &.scroll-container {
+    padding: 10px $padding 0;
+    .scroll-bar {
+      .scroll-bar-inner {
+        background: #444;
+      }
+    }
   }
+  $openWidth: 500px;
   .message-item {
     $gap: 10px;
     $width: 50px;
@@ -100,6 +125,15 @@ watch(() => props.messageList.length, async () =>{
       clear: both;
       display: block;
     }
+  }
+}
+.buts {
+  height: 0;
+  position: relative;
+  .to-bottom {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
   }
 }
 </style>
