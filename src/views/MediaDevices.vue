@@ -75,10 +75,8 @@ const deviceInfo = ref<ModelValue>({
 
 const joinDisable = ref<boolean>(true)
 
-// const host = 'wss://' + window.location.hostname;
-const host = 'https://124.71.32.191'
-// const host = 'https://192.168.50.149'
-const port = 3000
+const host = import.meta.env.VITE_HOST
+const port = import.meta.env.VITE_PORT
 
 const join = (userInfo: { username: string, roomname: string }) => {
   fetch(`${host}:${port}/checkUsername?${new URLSearchParams(userInfo).toString()}`, { method: 'GET' })
