@@ -13,6 +13,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import useResizeObserver from '/@/hooks/useResizeObserver';
 import { Merge } from '@/utils/type';
+import { debounce } from '../utils/util';
 
 type Props = {
   type?: 'x' | 'y'
@@ -101,21 +102,22 @@ const updateScrollBarInner: ResizeObserverCallback = ([entry]) => {
   const { x, y } = transform
   if ((x === 0 && y === 0)) return
   // 更新滚动条位置
-  let scrollLeft = container.value.scrollLeft
-  let scrollTop = container.value.scrollTop
+  let { scrollLeft, scrollTop } = scrollRect
+  const { width: innerWidth, height: innerHeight } = inner.value.getBoundingClientRect()
   if (type === 'y') {
     if (height - scrollTop < parentHeight) {
       scrollTop = Math.max(0, height - parentHeight)
-      scrollLeft = 0
     }
+    transform.y = Math.max(Math.min(scrollTop * parentHeight / height, parentHeight - innerHeight), 0)
   } else {
     if (width - scrollLeft < parentWidth) {
       scrollLeft = Math.max(0, width - parentWidth)
-      scrollTop = 0
     }
+    transform.x = Math.max(Math.min(scrollLeft * parentWidth / width, parentWidth - innerWidth), 0)
   }
   container.value.scrollLeft = scrollRect.scrollLeft = scrollLeft
   container.value.scrollTop = scrollRect.scrollTop = scrollTop
+  inner.value.style.transform = `translate(${transform.x}px, ${transform.y}px)`
   if (entry.target === container.value) {
     emits('resize', {
       type,
@@ -177,18 +179,27 @@ function onMousemove(e: MouseEvent) {
   if (type === 'x') {
     scrollLeft = Math.max(Math.min(scrollLeft + (x - oldX) * baseNumber * scaleWidth, width - parentWidth), 0)
     container.value.scrollLeft = scrollLeft
-    container.value.scrollTop = 0
   } else {
     scrollTop = Math.max(Math.min(scrollTop + (y - oldY) * baseNumber * scaleHeight, height - parentHeight), 0)
     container.value.scrollTop = scrollTop
-    container.value.scrollLeft = 0
   }
+  scrollTo(scrollLeft, scrollTop, { async: false })
 }
 
 function onMouseup() {
   document.removeEventListener('mousemove', onMousemove)
 }
 
+const stpeCache = (() => {
+  let scrollLeftStart: number, stpeTotal = 0
+  const clear = debounce(() => { scrollLeftStart = null;stpeTotal = 0 }, 100)
+  return (left: number, stpe: number) => {
+    stpeTotal += stpe
+    scrollLeftStart = scrollLeftStart ?? left
+    clear()
+    return scrollLeftStart + stpeTotal
+  }
+})()
 function scroll(e: WheelEvent) {
   const type = props.type
   // 鼠标滚轮滚动
@@ -199,9 +210,8 @@ function scroll(e: WheelEvent) {
   const { width: parentWidth, height: parentHeight } = container.value.getBoundingClientRect()
   const { width: innerWidth, height: innerHeight } = inner.value.getBoundingClientRect()
   if (e.type === 'wheel') {
-    scrollLeft += stpe
-    container.value.scrollLeft = scrollLeft
-    container.value.scrollTop = 0
+    scrollLeft = stpeCache(scrollLeft, stpe)
+    scrollTo(scrollLeft, 0, { async: false })
     return
   } else {
     if (type === 'x') {
@@ -225,25 +235,34 @@ function scroll(e: WheelEvent) {
   })
 }
 
-function scrollTo(top: number, left: number) {
-  setTimeout(() => container.value.scrollTo({
+function scrollTo(left: number, top: number, option?: {
+  async?: boolean,
+  behavior?: ScrollBehavior
+}) {
+  const { async, behavior = 'smooth' } = option || {}
+  const task = () => container.value.scrollTo({
     top,
     left,
-    behavior: 'smooth'
-  }), 1)
+    behavior
+  })
+  if (async) {
+    setTimeout(task, 1)
+    return
+  }
+  task()
 }
 
 function scrollToTop() {
   scrollTo(0, 0)
 }
 function scrollToBottom() {
-  scrollTo(container.value.scrollHeight, 0)
+  scrollTo(0, container.value.scrollHeight)
 }
 function scrollToLeft() {
   scrollTo(0, 0)
 }
 function scrollToRight() {
-  scrollTo(0, container.value.scrollWidth)
+  scrollTo(container.value.scrollWidth, 0)
 }
 
 defineExpose({
