@@ -1,6 +1,6 @@
 <template>
   <a-layout>
-    <a-layout-sider v-model:collapsed="collapsed" :trigger="null" collapsible>
+    <a-layout-sider v-if="isDevelopment" v-model:collapsed="collapsed" :trigger="null" collapsible>
       <div class="logo" />
       <a-menu v-model:selectedKeys="selectedKeys" theme="dark" mode="inline">
         <a-menu-item v-for="router in routerList" :key="router.title" @click="to(router.component)">
@@ -10,7 +10,7 @@
       </a-menu>
     </a-layout-sider>
     <a-layout>
-      <a-layout-header style="background: #fff; padding: 0 16px">
+      <a-layout-header v-if="isDevelopment" style="background: #fff; padding: 0 16px">
         <menu-unfold-outlined
           v-if="collapsed"
           class="trigger"
@@ -18,22 +18,12 @@
         />
         <menu-fold-outlined v-else class="trigger" @click="() => (collapsed = !collapsed)" />
       </a-layout-header>
-      <a-layout-content
-        style="--main-height: calc(100vh - 70px - 64px - 24px);"
-        :style="{ 
-          margin: '24px 16px 0',
-          padding: '5px',
-          background: '#2b2b2b' ,
-          minHeight: 'var(--main-height)',
-          borderRadius: '10px',
-          color: '#fff',
-        }"
-      >
+      <a-layout-content :style="mainStyle">
         <template v-if="show">
           <component :is='component'></component>
         </template>
       </a-layout-content>
-      <a-layout-footer style="text-align: center">
+      <a-layout-footer v-if="isDevelopment" style="text-align: center">
         Tool-library ©2023
       </a-layout-footer>
     </a-layout>
@@ -41,7 +31,7 @@
 </template>
 
 <script lang="ts" setup>
-import { FileTextFilled, CameraFilled, PictureFilled } from '@ant-design/icons-vue';
+import { FileTextFilled, CameraFilled, PictureFilled, CloudDownloadOutlined } from '@ant-design/icons-vue';
 import { defineAsyncComponent, ref, markRaw, shallowRef, reactive, shallowReactive  } from 'vue';
 import Clipboard from '@/views/Clipboard.vue';
 import MediaDevices from '@/views/MediaDevices.vue';
@@ -54,6 +44,7 @@ import {
 
 type Component = ReturnType<typeof defineAsyncComponent>
 
+const isDevelopment = ref(import.meta.env.VITE_NODE_ENV === 'development')
 const selectedKeys = ref<string[]>(['Clipboard']);
 const collapsed = ref<boolean>(false);
 
@@ -67,13 +58,22 @@ const show = shallowRef<boolean>(false)
 const component = shallowRef<Component>(null)
 
 async function to(comp: Component) {
-  component.value = comp
+  component.value = isDevelopment.value ? comp : MediaDevices
   show.value = true
 }
 
 to(routerList[0].component)
-</script>
 
+const mainStyle = reactive({
+  '--main-height': isDevelopment.value ? 'calc(100vh - 70px - 64px - 24px)' : '100vh',
+  margin: isDevelopment.value ? '24px 16px 0' : '0',
+  padding: '5px',
+  background: '#2b2b2b' ,
+  minHeight: 'var(--main-height)',
+  borderRadius: '6px',
+  color: '#fff',
+})
+</script>
 <style>
 #components-layout-demo-custom-trigger .trigger {
   font-size: 18px;
