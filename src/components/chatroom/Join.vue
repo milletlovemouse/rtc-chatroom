@@ -76,7 +76,12 @@ const aspectRatio = computed<number>(() => {
     height: calc(100% - 60px);
     text-align: center;
     video {
+      width: 100%;
+      height: 100%;
+      max-width: 550px;
+      max-height: 500px;
       border-radius: 8px;
+      object-fit: cover;
     }
   }
   .form {

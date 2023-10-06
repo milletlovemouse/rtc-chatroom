@@ -5,27 +5,7 @@
         <Join :stream="localStream" :joinDisable="joinDisable" @join="join" />
       </template>
       <template v-else>
-        <div class="rtc-content">
-          <div class="video-box">
-            <video ref="video" v-if="localStream && localStream.active" :srcObject="localStream"></video>
-            <UserIcon v-else />
-          </div>
-          <div class="video-box display-video" v-if="displayStream">
-            <video ref="displayVideo" :srcObject="displayStream"></video>
-          </div>
-          <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.id">
-            <video
-              ref="videoList"
-              v-if="connectorInfo.videoActive"
-              :srcObject="connectorInfo.remoteStream"
-            ></video>
-            <UserIcon v-else />
-            <audio
-              v-if="!connectorInfo.videoActive && connectorInfo.audioActive"
-              :srcObject="connectorInfo.remoteStream"
-            ></audio>
-          </div>
-        </div>
+        <MemberList :memberList="memberList" :mainStream="displayStream" />
       </template>
       <div class="rtc-tool">
         <device-select
@@ -48,22 +28,22 @@
 </template>
 <script lang="ts" setup>
 import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, onUnmounted, computed, Ref, shallowReactive, onBeforeUnmount, provide } from 'vue';
-import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
-import RTCClient, { ConnectorInfoMap, ConnectorInfo } from '/@/utils/WebRTC/rtc-client';
+import RTCClient, { ConnectorInfoList } from '/@/utils/WebRTC/rtc-client';
 import { onError } from '/@/utils/WebRTC/message';
-import DeviceSelect, { ModelValue } from '/@/components/chat/DeviceSelect.vue';
+import DeviceSelect, { ModelValue } from '/@/components/chatroom/DeviceSelect.vue';
+import MemberList from '/@/components/chatroom/MemberList.vue';
 import Chat from '/@/components/chat/Chat.vue';
-import Join from '/@/components/chat/Join.vue';
-import UserIcon from '/@/components/chat/user-icon.vue';
+import Join from '/@/components/chatroom/Join.vue';
 
 const isInRoom = ref<boolean>(false)
-// 媒体元素
-const video = ref<HTMLVideoElement>(null)
-const displayVideo = ref<HTMLVideoElement>(null)
 // 本地流
 let localStream = ref<MediaStream>(null)
 // 屏幕共享媒体流
-let displayStream = ref<MediaStream>(null)
+let displayStream = ref<{
+  streamType: 'display' | 'remoteDisplay',
+  connectorId: 'display',
+  remoteStream: MediaStream,
+}>(null)
 
 const deviceInfo = ref<ModelValue>({
   audioDisabled: false,
@@ -85,9 +65,6 @@ const join = (userInfo: { username: string, roomname: string }) => {
       if (!data.isRepeat) {
         isInRoom.value = true
         rtc.join(userInfo)
-        await nextTick()
-        video.value?.load()
-        video.value?.play()
         return
       }
       onError('房间内用户名已存在')
@@ -99,25 +76,24 @@ const join = (userInfo: { username: string, roomname: string }) => {
     })
 }
 
-const connectorInfoList = ref<Pick<ConnectorInfo, "streamType" | "connectorId" | "remoteStream">[]>([])
+const connectorInfoList = ref<ConnectorInfoList>([])
 const memberList = computed(() => {
-  return connectorInfoList.value.map((item) => {
-    const audioActive = !!item.remoteStream?.getAudioTracks()?.length
-    const videoActive = !!item.remoteStream?.getVideoTracks()?.length
-    console.log({
-      ...item,
-      audioActive,
-      videoActive
-    });
-    
-    return {
-      ...item,
-      audioActive,
-      videoActive
+  const mainConnectorInfo = connectorInfoList.value.find(connectorInfo => connectorInfo.streamType !== 'user')
+  if (mainConnectorInfo) {
+    displayStream.value = {
+      streamType: 'remoteDisplay',
+      connectorId: 'display',
+      remoteStream: mainConnectorInfo.remoteStream,
     }
-  })
+  } else if (displayStream.value?.streamType !== 'display') {
+    displayStream.value = null
+  }
+  return [{
+    streamType: 'user',
+    connectorId: 'local',
+    remoteStream: localStream.value,
+  }, ...connectorInfoList.value.filter(connectorInfo => connectorInfo.streamType === 'user')]
 })
-const videoList = ref<HTMLVideoElement[]>([])
 
 let rtc = new RTCClient({
   configuration: {
@@ -151,30 +127,18 @@ rtc.on('connectorInfoListChange', (data) => {
 })
 
 rtc.on('displayStreamChange', async (stream) => {
-  displayStream.value = stream
+  displayStream.value = stream ? {
+    streamType: 'display',
+    connectorId: 'display',
+    remoteStream: stream,
+  } : null
+
   deviceInfo.value.dispalyEnabled = !!stream
-  await nextTick()
-  displayVideo.value?.load()
-  displayVideo.value?.play()
 })
 
 rtc.on('localStreamChange', async (stream) => {
   localStream.value = stream
-  if (!isInRoom.value) return
-  await nextTick()
-  video.value?.load()
-  video.value?.play()
 })
-
-watch(memberList, async () => {
-  console.log(memberList.value)
-  await nextTick()
-  connectorInfoList.value.forEach((connectorInfo, index) => {
-    const video = videoList.value[index]
-    video?.load()
-    video?.play()
-  })
-}, { deep: true })
 
 // 麦克风设备切换禁用状态
 const audioDisabledToggle = (value: boolean) => {
@@ -217,9 +181,6 @@ async function shareDisplayMedia(value: boolean) {
 (function showLocalStream() {
   rtc.getLocalStream().then(async (stream) => {
     localStream.value = stream
-    await nextTick()
-    video.value?.load()
-    video.value?.play()
   })
 })()
 
@@ -241,7 +202,7 @@ function exit() {
   isInRoom.value = false
   open.value = false
   chat.value.clearMessage()
-  deviceSelect.value.reset()
+  deviceSelect.value.reset()  
 }
 
 const close = (event: Event) => {
@@ -259,78 +220,18 @@ onBeforeUnmount(() => {
   window.removeEventListener('unload', close);
 })
 
-const columns = computed(() => {
-  const num = connectorInfoList.value.length + 1 + (displayStream.value ? 1 : 0)
-  return Math.min(Math.ceil(Math.sqrt(num)), 4)
-})
-
-const rows = computed(() => {
-  const num = connectorInfoList.value.length + 1 + (displayStream.value ? 1 : 0)
-  return Math.ceil(num / columns.value)
-})
-
-const cloWidth = computed(() => {
-  return (100 / columns.value).toFixed(2) + '%'
-})
-
-const rowHeight = computed(() => {
-  const num = connectorInfoList.value.length + 1 + (displayStream.value ? 1 : 0)
-  if (num > 16) return '25%'
-  return (100 / rows.value).toFixed(2) + '%'
-})
-
-// const overflow = computed(() => {
-//   const num = memberList.value.length + 1
-//   if (num > 16) return 'scroll'
-//   return 'hidden'
-// })
-
 </script>
 <style lang="scss" scoped>
 .rtc {
   position: relative;
   height: 100%;
-  $width: 500px;
-  $margin: 24px;
-  $padding: 5px;
-  $height: calc(var(--main-height) - 32px - $margin * 3);
+  overflow: hidden;
   .rtc-body {
     width: 100%;
     float: left;
     transition: all 0.5s;
     &.open {
       width: calc(100% - 500px);
-    }
-    .rtc-content {
-      display: grid;
-      grid-template-columns: repeat(v-bind(columns), v-bind(cloWidth));
-      grid-template-rows: repeat(v-bind(rows), v-bind(rowHeight));
-      width: 100%;
-      height: $height;
-      margin: 0 0 $margin 0;
-      overflow-y: auto;
-      scrollbar-width: none;
-      &::-webkit-scrollbar { 
-        width: 0 !important;
-      }
-      .video-box {
-        padding: $padding;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        video {
-          width: 100%;
-          height: 100%;
-          border-radius: 8px;
-          object-fit: cover;
-        }
-        &.display-video {
-          video {
-            width: 100%;
-            height: auto;
-          }
-        }
-      }
     }
     &::after {
       content: "";

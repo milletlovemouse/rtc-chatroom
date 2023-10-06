@@ -59,8 +59,10 @@ enum MittEventName {
   LOCAL_STREAM_CHANGE = "localStreamChange",
   MESSAGE = "message",
 }
+
+export type ConnectorInfoList = Pick<ConnectorInfo, 'streamType' | 'connectorId' | 'remoteStream'>[]
 type MittEventType  = {
-  'connectorInfoListChange': Pick<ConnectorInfo, 'streamType' | 'connectorId' | 'remoteStream'>[];
+  'connectorInfoListChange': ConnectorInfoList,
   'displayStreamChange': MediaStream,
   'localStreamChange': MediaStream,
   'message': Message,
@@ -138,7 +140,7 @@ enum StreamTypeEnum {
   DISPLAY = 'display',
   REMOTE_DISPLAY = 'remoteDisplay',
 }
-type StreamType = 'user' | 'display' | 'remoteDisplay';
+export type StreamType = 'user' | 'display' | 'remoteDisplay';
 
 enum TypeEnum {
   OFFER = 'offer',
@@ -407,8 +409,8 @@ export default class RTCClient extends SocketClient {
     emitter.emit(MittEventName.DISPLAY_STREAM_CHANGE, null)
     this.connectorInfoMap.forEach(connectorInfo => {
       if (connectorInfo.streamType === StreamTypeEnum.DISPLAY) {
-        const { connectorId } = connectorInfo
-        this.sendCloseMessage(connectorInfo, { connectorId })
+        const { remoteConnectorId } = connectorInfo
+        this.sendCloseMessage(connectorInfo, { connectorId: remoteConnectorId })
       }
     })
     this.closeDisplayConnector()
@@ -894,7 +896,6 @@ export default class RTCClient extends SocketClient {
   private removeTrack(connectorInfo: ConnectorInfo, kind: Kind) {
     const senders = connectorInfo.senders.filter((s) => s.track?.kind === kind);
     connectorInfo.senders = connectorInfo.senders.filter((s) => s.track?.kind !== kind)
-    console.log(senders);
     connectorInfo.webrtc.removeTrack(senders)
   }
 
