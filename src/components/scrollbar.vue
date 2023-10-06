@@ -108,15 +108,19 @@ const updateScrollBarInner: ResizeObserverCallback = ([entry]) => {
     if (height - scrollTop < parentHeight) {
       scrollTop = Math.max(0, height - parentHeight)
     }
+    scrollLeft = 0
     transform.y = Math.max(Math.min(scrollTop * parentHeight / height, parentHeight - innerHeight), 0)
   } else {
     if (width - scrollLeft < parentWidth) {
       scrollLeft = Math.max(0, width - parentWidth)
     }
+    scrollTop = 0
     transform.x = Math.max(Math.min(scrollLeft * parentWidth / width, parentWidth - innerWidth), 0)
   }
+  
   container.value.scrollLeft = scrollRect.scrollLeft = scrollLeft
   container.value.scrollTop = scrollRect.scrollTop = scrollTop
+  scrollBar.value.style.transform = `translate(${scrollLeft}px, ${scrollTop}px)`
   inner.value.style.transform = `translate(${transform.x}px, ${transform.y}px)`
   if (entry.target === container.value) {
     emits('resize', {

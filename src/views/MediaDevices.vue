@@ -10,8 +10,8 @@
             <video ref="video" v-if="localStream && localStream.active" :srcObject="localStream"></video>
             <UserIcon v-else />
           </div>
-          <div class="video-box" v-if="displayStream">
-            <video ref="displayVideo" :srcObject="localStream"></video>
+          <div class="video-box display-video" v-if="displayStream">
+            <video ref="displayVideo" :srcObject="displayStream"></video>
           </div>
           <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.id">
             <video
@@ -152,6 +152,7 @@ rtc.on('connectorInfoListChange', (data) => {
 
 rtc.on('displayStreamChange', async (stream) => {
   displayStream.value = stream
+  deviceInfo.value.dispalyEnabled = !!stream
   await nextTick()
   displayVideo.value?.load()
   displayVideo.value?.play()
@@ -259,12 +260,12 @@ onBeforeUnmount(() => {
 })
 
 const columns = computed(() => {
-  const num = connectorInfoList.value.length + 1
+  const num = connectorInfoList.value.length + 1 + (displayStream.value ? 1 : 0)
   return Math.min(Math.ceil(Math.sqrt(num)), 4)
 })
 
 const rows = computed(() => {
-  const num = connectorInfoList.value.length + 1
+  const num = connectorInfoList.value.length + 1 + (displayStream.value ? 1 : 0)
   return Math.ceil(num / columns.value)
 })
 
@@ -273,7 +274,7 @@ const cloWidth = computed(() => {
 })
 
 const rowHeight = computed(() => {
-  const num = connectorInfoList.value.length + 1
+  const num = connectorInfoList.value.length + 1 + (displayStream.value ? 1 : 0)
   if (num > 16) return '25%'
   return (100 / rows.value).toFixed(2) + '%'
 })
@@ -322,6 +323,12 @@ const rowHeight = computed(() => {
           height: 100%;
           border-radius: 8px;
           object-fit: cover;
+        }
+        &.display-video {
+          video {
+            width: 100%;
+            height: auto;
+          }
         }
       }
     }
