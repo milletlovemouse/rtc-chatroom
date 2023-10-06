@@ -2,7 +2,7 @@
   <div class="chat-join">
     <div class="video-box">
       <video ref="video" v-if="props.stream" :srcObject="props.stream"></video>
-      <UserIcon :style="{ aspectRatio }" v-else/>
+      <UserIcon style="border: none" v-else/>
     </div>
     <form ref="form" class="form">
       <div class="input-box">

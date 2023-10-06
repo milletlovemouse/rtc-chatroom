@@ -86,6 +86,7 @@ const join = (userInfo: { username: string, roomname: string }) => {
         isInRoom.value = true
         rtc.join(userInfo)
         await nextTick()
+        video.value?.load()
         video.value?.play()
         return
       }
@@ -152,6 +153,7 @@ rtc.on('connectorInfoListChange', (data) => {
 rtc.on('displayStreamChange', async (stream) => {
   displayStream.value = stream
   await nextTick()
+  displayVideo.value?.load()
   displayVideo.value?.play()
 })
 
@@ -159,6 +161,7 @@ rtc.on('localStreamChange', async (stream) => {
   localStream.value = stream
   if (!isInRoom.value) return
   await nextTick()
+  video.value?.load()
   video.value?.play()
 })
 
@@ -167,6 +170,7 @@ watch(memberList, async () => {
   await nextTick()
   connectorInfoList.value.forEach((connectorInfo, index) => {
     const video = videoList.value[index]
+    video?.load()
     video?.play()
   })
 }, { deep: true })
@@ -210,8 +214,10 @@ async function shareDisplayMedia(value: boolean) {
 }
 
 (function showLocalStream() {
-  rtc.getLocalStream().then((stream) => {
+  rtc.getLocalStream().then(async (stream) => {
     localStream.value = stream
+    await nextTick()
+    video.value?.load()
     video.value?.play()
   })
 })()

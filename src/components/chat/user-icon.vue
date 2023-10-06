@@ -2,7 +2,7 @@
   <div
     class="user-icon"
     :style="{
-      // border: `2px solid ${token.colorBorder}`,
+      border: `2px solid #444`,
       borderRadius: token.borderRadius,
       background: '#2b2b2b',
       display: 'flex',
@@ -10,9 +10,11 @@
       alignItems: 'center',
       width: '100%',
       height: '100%',
+      fontSize: '35em',
+      color: '#111',
     }"
   >
-    <UserOutlined v-bind="$attrs" style="font-size: 35em"/>
+    <UserOutlined />
   </div>
 </template>
 <script lang="ts" setup>
