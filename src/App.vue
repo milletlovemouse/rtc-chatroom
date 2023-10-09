@@ -4,7 +4,7 @@ import { ref } from 'vue';
 import { theme } from 'ant-design-vue';
 
 const defaultData = {
-  borderRadius: '4px',
+  borderRadius: 4,
   colorPrimary: '#444444',
   borderColor: '#444',
 };

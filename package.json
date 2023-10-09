@@ -15,6 +15,7 @@
     "sass": "^1.66.1",
     "sass-loader": "^13.3.2",
     "socket.io-client": "^4.7.2",
+    "unplugin-vue-components": "^0.25.2",
     "vite-svg-loader": "^4.0.0",
     "vue": "^3.3.4"
   },
