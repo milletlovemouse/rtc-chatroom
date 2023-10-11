@@ -12,7 +12,18 @@
 ```typescript
 import RTCClient from 'rtc-client';
 
-let rtc = new RTCClient({
+const host = 'https://127.0.0.1'
+const port = 3000
+
+const deviceInfo = {
+  audioDisabled: false,
+  cameraDisabled: false,
+  audioDeviceId: '',
+  cameraDeviceId: '',
+  dispalyEnabled: false
+}
+
+const rtc = new RTCClient({
   configuration: {
     iceServers: [
       {

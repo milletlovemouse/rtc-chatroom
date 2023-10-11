@@ -7,7 +7,6 @@ export default function useResizeObserver(target: Ref<Element>, callback: Resize
     resizeObserver = null
   }
   return () => {
-    disconnect()
     watch(() => target.value, (con) => {
       disconnect()
       if (con) {

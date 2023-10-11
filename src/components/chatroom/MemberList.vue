@@ -38,7 +38,7 @@ const props = defineProps<{
 
 // 媒体元素
 const videoList = ref<HTMLVideoElement[]>([])
-  const audioList = ref<HTMLAudioElement[]>([])
+const audioList = ref<HTMLAudioElement[]>([])
 const mainVideo = ref<HTMLVideoElement>(null)
 
 const memberList = computed(() => {

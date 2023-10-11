@@ -367,11 +367,10 @@ export const EditImage = defineComponent({
         document.addEventListener('mousemove', updateCursor)
       }
     }
-    let moveDown = false // 记录是否在裁剪区域按下
     const updateMoveDown = (e: MouseEvent) => {
       e.stopPropagation()
-      moveDown = e.type === 'mousedown'
-      if (moveDown) {
+      // 按下还是抬起
+      if (e.type === 'mousedown') {
         const { x, y } = e
         downInfo = { x, y }
         document.addEventListener('mousemove', updateRegion)

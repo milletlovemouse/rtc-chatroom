@@ -60,7 +60,7 @@ export const Menu = defineComponent({
   }
 })
 
-export function useMenu(menuList: Ref<MenuList> | MenuList, style: Partial<CSSStyleDeclaration> = {}) {
+export function createMenu(menuList: Ref<MenuList> | MenuList, style: Partial<CSSStyleDeclaration> = {}) {
   const root = document.createElement('div')
   const rootStyle = {
     ...root.style,

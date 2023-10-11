@@ -71,7 +71,6 @@ const join = (userInfo: { username: string, roomname: string }) => {
     })
     .catch((err) => {
       console.error(err);
-      
       onError('检查用户名失败')
     })
 }

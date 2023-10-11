@@ -280,7 +280,7 @@ export default class RTCClient extends SocketClient {
     emitter.on(type, listener)
   }
 
-  public off(type: keyof MittEventType, listener: (...args: any[]) => void){
+  public off(type: keyof MittEventType, listener?: (...args: any[]) => void){
     emitter.off(type, listener)
   }
 
@@ -372,7 +372,7 @@ export default class RTCClient extends SocketClient {
    * 暴露共享屏幕接口
    */
   public async shareDisplayMedia() {
-    const webrtcList = [...this.connectorInfoMap.values()]
+    const webrtcList = Array.from(this.connectorInfoMap.values())
     const isDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.DISPLAY)
     const isRemoteDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.REMOTE_DISPLAY)
     if (isDisplay) {

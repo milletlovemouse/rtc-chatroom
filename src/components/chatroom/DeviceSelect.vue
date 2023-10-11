@@ -297,7 +297,7 @@ async function initDeviceInfo() {
     initResolution()
   } catch (error) {
     emit('update:joinDisable', true)
-    onError('以阻止页面访问摄像头或者麦克风，应用将无法正常使用')
+    onError('未能成功访问摄像头或者麦克风，应用无法正常使用')
     console.error(error.message);
     setTimeout(initDeviceInfo, 1000)
   }
