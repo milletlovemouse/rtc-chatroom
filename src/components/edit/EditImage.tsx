@@ -388,23 +388,23 @@ export const EditImage = defineComponent({
     })
     return () => (
       <div ref={root} class={style.editImage}>
-        <div class={style.close} onClick={props.close}><CloseOutlined /></div>
-        <div class={style.maskLayer}></div>
-        <div class={style.editImageContainer}>
-          <img ref={image} class={style.image} src={props.img.url} alt={props.img.file.name} />
+        <div class="close" onClick={props.close}><CloseOutlined /></div>
+        <div class="mask-layer"></div>
+        <div class="edit-image-container">
+          <img ref={image} class="image" src={props.img.url} alt={props.img.file.name} />
           {/* <canvas ref={canvas} class={style.canvas}></canvas> */}
           { cutState.value
-            ? <div class={style.cut}>
-                <div ref={region} style={cutInfo.value} class={style.region}>
-                  <div onMousedown={updateMoveDown} onMouseup={updateMoveDown} class={style.fill}></div>
+            ? <div class="cut">
+                <div ref={region} style={cutInfo.value} class="region">
+                  <div onMousedown={updateMoveDown} onMouseup={updateMoveDown} class="fill"></div>
                 </div>
-                <div ref={topEl} class={style.top}></div>
-                <div ref={bottomEl} class={style.bottom}></div>
-                <div ref={leftEl} class={style.left}></div>
-                <div ref={rightEl} class={style.right}></div>
+                <div ref={topEl} class="top"></div>
+                <div ref={bottomEl} class="bottom"></div>
+                <div ref={leftEl} class="left"></div>
+                <div ref={rightEl} class="right"></div>
               </div>
             : null }
-          <div class={style.toolbar} onMousedown={(e) => e.stopPropagation()}>
+          <div class="toolbar" onMousedown={(e) => e.stopPropagation()}>
             <ScissorOutlined title="裁剪" onClick={cut} />
             <SaveOutlined title="保存" onClick={save} />
           </div>

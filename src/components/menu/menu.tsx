@@ -26,11 +26,11 @@ export const MenuChild = defineComponent({
   },
   setup(props, { attrs }) {
     return () => (
-      <li class={ style.menuChild } onClick={() => props.menu.methods(props.menu)}>
-        <span class={ style.prefixIcon }>
+      <li class="menu-child" onClick={() => props.menu.methods(props.menu)}>
+        <span class="prefix-icon">
           { h(props.menu.icon) }
         </span>
-        <span class={ style.menuName }>
+        <span class="menu-name">
           { props.menu.name }
         </span>
       </li>
