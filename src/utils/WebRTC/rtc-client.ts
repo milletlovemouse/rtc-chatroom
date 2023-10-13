@@ -192,7 +192,7 @@ export type Options = {
   constraints: MediaStreamConstraints;
   socketConfig: {
     host: string;
-    port: number;
+    port?: number | string;
   }
 }
 
@@ -231,6 +231,8 @@ export default class RTCClient extends SocketClient {
   }
 
   private init() {
+    this.audioState = !!this.streamConstraints.audio
+    this.videoState = !!this.streamConstraints.video
     this.bindSocketEvent();
   }
 
@@ -366,24 +368,45 @@ export default class RTCClient extends SocketClient {
    */
   private async addLocalStream(connectorInfo: ConnectorInfo) {
     const { webrtc } = connectorInfo
+    let localStream: MediaStream
     try {
-      const localStream = await this.mediaDevices.getUserMedia()
+      localStream = await this.mediaDevices.getUserMedia()
+    } catch {
+      try {
+        localStream = await this.mediaDevices.getUserVideoMedia()
+      } catch(error) {
+        console.error(error.message, error.name, KindEnum.VIDEO)
+      }
+      try {
+        localStream = await this.mediaDevices.getUserAudioMedia()
+      } catch (error) {
+        console.error(error.message, error.name, KindEnum.VIDEO)
+      }
+    }
+    if (localStream) {
       const audioTracks = localStream.getAudioTracks()
       const videoTracks = localStream.getVideoTracks()
       connectorInfo.senders = webrtc.addTrack([...videoTracks, ...audioTracks], localStream)
+      if (connectorInfo.type === TypeEnum.OFFER) {
+        if (!videoTracks.length) {
+          webrtc.peerConnection.addTransceiver(KindEnum.VIDEO)
+        }
+        if (!audioTracks.length) {
+          webrtc.peerConnection.addTransceiver(KindEnum.AUDIO)
+        }
+      }
       if (!this.audioState) {
         this.removeTrack(connectorInfo, KindEnum.AUDIO)
       }
       if (!this.videoState) {
         this.removeTrack(connectorInfo, KindEnum.VIDEO)
       }
-    } catch (error) {
+    } else {
       if (connectorInfo.type === TypeEnum.OFFER) {
         webrtc.peerConnection.addTransceiver(KindEnum.VIDEO)
         webrtc.peerConnection.addTransceiver(KindEnum.AUDIO)
       }
       connectorInfo.senders = []
-      console.error(error)
     }
   }
   
@@ -399,7 +422,7 @@ export default class RTCClient extends SocketClient {
       const videoTracks = localDisplayStream.getVideoTracks()
       webrtc.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
     } catch (error) {
-      console.error(error)
+      console.error(error.message, error.name)
     }
   }
 
@@ -536,7 +559,7 @@ export default class RTCClient extends SocketClient {
       await webrtc.peerConnection.setLocalDescription(offer)
       this.sendOfferMessage({ connectorId, memberId, offer, streamType })
     } catch (error) {
-      console.error(error)
+      console.error(error.message, error.name)
     }
   }
 
@@ -565,7 +588,7 @@ export default class RTCClient extends SocketClient {
         streamType: createType
       })
     } catch (error) {
-      console.error(error)
+      console.error(error.message, error.name)
     }
   }
 
@@ -590,7 +613,7 @@ export default class RTCClient extends SocketClient {
       connectorInfo.remoteConnectorId = remoteConnectorId // 记录对方的connectorId
       await connectorInfo.webrtc.peerConnection.setRemoteDescription(answer)
     } catch (error) {
-      console.error(error)
+      console.error(error.message, error.name)
     }
   }
 

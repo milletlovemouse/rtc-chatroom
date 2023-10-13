@@ -2,7 +2,7 @@ import { io, Socket } from "socket.io-client";
 
 export type Options = {
   host: string;
-  port: number;
+  port?: number | string;
 }
 
 export type ConnectFunc = (...args: any[]) => void
@@ -12,7 +12,7 @@ export default class SocketClient {
   private connect: ConnectFunc
   constructor(options: Options) {
     const { host, port } = options;
-    const url = host + ":" + port;
+    const url = host + (port ? (":" + port) : '');
     this.socket = io(url);
     this.bind()
   }

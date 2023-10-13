@@ -277,28 +277,45 @@ async function initResolution() {
   updataModelValue({ resolution: [0] })
 }
 
-let tips = true
-async function initDeviceInfo() {
+let videoTips = true
+async function initVideoDevice() {
   try {
-    await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    await navigator.mediaDevices.getUserMedia({ video: true })
     const deviceInfoList = await rtc.getDevicesInfoList()
-    const map = new Map<string, DeviceInfo[]>()
-    deviceInfoList.forEach((deviceInfo: DeviceInfo) => {
-      const list = map.get(deviceInfo.kind) || []
-      list.push(deviceInfo)
-      map.set(deviceInfo.kind, list)
-    })
-    audioMediaStreamTrackOptions.value = map.get('audioinput') as Options
-    cameraMediaStreamTrackOptions.value = map.get('videoinput') as Options
-    // initResolution()
+    cameraMediaStreamTrackOptions.value = deviceInfoList.filter(info => info.kind === 'videoinput')
   } catch (error) {
-    if (tips) {
-      onError('未能成功访问摄像头或者麦克风，应用无法正常使用')
+    if (videoTips) {
+      onError('未能成功访问摄像头')
       console.error(error.message);
     }
-    setTimeout(initDeviceInfo, 1000)
-    tips = false
+    if (error.name !== 'NotFoundError') {
+      setTimeout(initVideoDevice, 1000)
+      videoTips = false
+    }
   }
+}
+
+let audioTips = true
+async function initAudioDevice() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true })
+    const deviceInfoList = await rtc.getDevicesInfoList()
+    audioMediaStreamTrackOptions.value = deviceInfoList.filter(info => info.kind === 'audioinput')
+  } catch (error) {
+    if (audioTips) {
+      onError('未能成功访问麦克风')
+      console.error(error.message);
+    }
+    if (error.name !== 'NotFoundError') {
+      setTimeout(initAudioDevice, 1000)
+      audioTips = false
+    }
+  }
+}
+
+async function initDeviceInfo() {
+  initVideoDevice()
+  initAudioDevice()
 }
 
 initDeviceInfo()

@@ -15,11 +15,29 @@ export default class MediaDevices {
     this.constraints = constraints
   }
 
-  public async getUserMedia(): Promise<MediaStream> {
+  private async getUserStream(constraints: MediaStreamConstraints): Promise<MediaStream> {
     if (this.localStream) return this.localStream
-    this.localStream = await navigator.mediaDevices.getUserMedia(this.constraints)
+    this.localStream = await navigator.mediaDevices.getUserMedia(constraints)
     this.locaStreamEventTaget = new CustomEventTarget(this.localStream)
     return this.localStream
+  }
+
+  public async getUserMedia(): Promise<MediaStream> {
+    return this.getUserStream(this.constraints)
+  }
+
+  public async getUserVideoMedia(): Promise<MediaStream> {
+    return this.getUserStream({
+      ...this.constraints,
+      audio: false,
+    })
+  }
+
+  public async getUserAudioMedia(): Promise<MediaStream> {
+    return this.getUserStream({
+      ...this.constraints,
+      video: false,
+    })
   }
 
   public async getDisplayMedia(): Promise<MediaStream> {
@@ -43,11 +61,11 @@ export default class MediaDevices {
   }
 
   public async getUserAudioTracks(): Promise<MediaStreamTrack[]> {
-    return (await this.getUserMedia()).getAudioTracks()
+    return (await this.getUserAudioMedia()).getAudioTracks()
   }
 
   public async getUserVideoTracks(): Promise<MediaStreamTrack[]>{
-    return (await this.getUserMedia()).getVideoTracks()
+    return (await this.getUserVideoMedia()).getVideoTracks()
   }
 
   public async getDisplayMediaStreamTracks(): Promise<MediaStreamTrack[]> {

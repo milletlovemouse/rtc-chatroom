@@ -52,12 +52,14 @@ const deviceInfo = ref<ModelValue>({
   dispalyEnabled: false
 })
 
-const host = import.meta.env.VITE_HOST
-const port = import.meta.env.VITE_PORT
+const host = location.host
+const baseurl = import.meta.env.VITE_BASE_URL
 
 const join = (userInfo: { username: string, roomname: string }) => {
-  fetch(`${host}:${port}/checkUsername?${new URLSearchParams(userInfo).toString()}`, { method: 'GET' })
-    .then(response => response.json())
+  fetch(`${baseurl}/checkUsername?${new URLSearchParams(userInfo).toString()}`, { method: 'GET' })
+    .then(response => {
+      return response.json()
+    })
     .then(async data => {
       if (!data.isRepeat) {
         isInRoom.value = true
@@ -107,7 +109,6 @@ let rtc = new RTCClient({
   },
   socketConfig: {
     host,
-    port,
   }
 })
 
