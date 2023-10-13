@@ -33,6 +33,7 @@
 <script lang="ts" setup>
 import { FileTextFilled, CameraFilled, PictureFilled, CloudDownloadOutlined } from '@ant-design/icons-vue';
 import { defineAsyncComponent, ref, markRaw, shallowRef, reactive, shallowReactive  } from 'vue';
+import { theme } from 'ant-design-vue';
 import Clipboard from '@/views/Clipboard.vue';
 import MediaDevices from '@/views/MediaDevices.vue';
 import Canvas from '@/views/Canvas.vue';
@@ -63,18 +64,22 @@ async function to(comp: Component) {
 }
 
 to(routerList[0].component)
-
+const { token } = theme.useToken()
 const mainStyle = reactive({
   '--main-height': isDevelopment.value ? 'calc(100vh - 70px - 64px - 24px)' : '100vh',
   margin: isDevelopment.value ? '24px 16px 0' : '0',
   padding: '5px',
-  background: '#2b2b2b' ,
+  background: '#2b2b2b',
   minHeight: 'var(--main-height)',
-  borderRadius: '6px',
+  borderRadius: isDevelopment.value ? '6px' : '0px',
   color: '#fff',
 })
 </script>
 <style>
+body {
+  background: #2b2b2b;
+}
+
 #components-layout-demo-custom-trigger .trigger {
   font-size: 18px;
   line-height: 64px;

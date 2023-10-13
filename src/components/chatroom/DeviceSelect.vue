@@ -78,14 +78,15 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { reactive, ref, h, watch, Ref, computed } from 'vue';
+import { reactive, ref, h, watch, Ref, computed, inject } from 'vue';
 import { AudioFilled, CameraFilled, AudioOutlined, AudioMutedOutlined, ShrinkOutlined } from '@ant-design/icons-vue';
 import { Icon } from '@vicons/utils'
 import { Video48Regular, VideoOff48Regular, Video48Filled } from '@vicons/fluent';
 import { DeviceDesktop, DeviceDesktopOff } from '@vicons/tabler'
 import { ExitToAppFilled, VideoSettingsOutlined } from '@vicons/material'
 import { ChatboxEllipsesOutline } from '@vicons/ionicons5'
-import MediaDevices, { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
+import RTCClient from '/@/utils/WebRTC/rtc-client';
+import { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
 import { onError } from '/@/utils/WebRTC/message';
 
 type Resolution = 2160 | 1440 | 1080 | 720 | 480 | 360 | 240 | 144 | 0
@@ -99,14 +100,12 @@ export interface Props {
     resolution?: number[]; // 分辨率
   },
   state: boolean,
-  joinDisable: boolean,
 }
 export type ModelValue = Props['modelValue']
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:modelValue': [value: ModelValue];
-  'update:joinDisable': [value: boolean];
   dispalyEnabledToggle: [value: boolean],
   audioDisabledToggle: [value: boolean],
   cameraDisabledToggle: [value: boolean],
@@ -116,6 +115,8 @@ const emit = defineEmits<{
   chatBoxToggle: [value: boolean],
   exit: [],
 }>()
+
+const rtc = inject<RTCClient>('rtc')
 
 const fieldNames = { value: 'deviceId' }
 const fontSize = ref('1.3em')
@@ -155,9 +156,9 @@ const resolutionOptions = computed(() => {
 })
 
 let deviceInfo: ModelValue = null
-watch(props.modelValue, (data) => {
-  deviceInfo = data
-})
+watch(() => props.modelValue, (data) => {
+  deviceInfo = {...data}  
+}, { deep: true })
 const updataModelValue = (data: Partial<ModelValue>) => {
   deviceInfo = { ...deviceInfo, ...data } // update:modelValue异步防抖更新，将修改的数据保存
   emit('update:modelValue', { ...props.modelValue, ...deviceInfo })
@@ -276,13 +277,11 @@ async function initResolution() {
   updataModelValue({ resolution: [0] })
 }
 
-const mediaDevices = new MediaDevices({
-  audio: true,
-  video: true
-})
+let tips = true
 async function initDeviceInfo() {
   try {
-    const deviceInfoList = await MediaDevices.enumerateDevices()
+    await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    const deviceInfoList = await rtc.getDevicesInfoList()
     const map = new Map<string, DeviceInfo[]>()
     deviceInfoList.forEach((deviceInfo: DeviceInfo) => {
       const list = map.get(deviceInfo.kind) || []
@@ -291,15 +290,14 @@ async function initDeviceInfo() {
     })
     audioMediaStreamTrackOptions.value = map.get('audioinput') as Options
     cameraMediaStreamTrackOptions.value = map.get('videoinput') as Options
-    const tracks = await mediaDevices.getUserMediaStreamTracks()
-    updateDeviceId(tracks)
-    emit('update:joinDisable', false)
-    initResolution()
+    // initResolution()
   } catch (error) {
-    emit('update:joinDisable', true)
-    onError('未能成功访问摄像头或者麦克风，应用无法正常使用')
-    console.error(error.message);
+    if (tips) {
+      onError('未能成功访问摄像头或者麦克风，应用无法正常使用')
+      console.error(error.message);
+    }
     setTimeout(initDeviceInfo, 1000)
+    tips = false
   }
 }
 

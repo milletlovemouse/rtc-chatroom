@@ -15,7 +15,7 @@
         <span>Username</span>
         <i></i>
       </div>
-      <input :class="{ submit: true, disabled: props.joinDisable }" type="submit" value="加入房间">
+      <input class="submit" type="submit" value="加入房间">
     </form>
   </div>
 </template>
@@ -25,7 +25,6 @@ import UserIcon from '/@/components/chat/user-icon.vue';
 
 const props = defineProps<{
   stream: MediaStream | null | undefined;
-  joinDisable: boolean;
 }>()
 const emit = defineEmits<{
   join: [value: {username: string, roomname: string}]
@@ -46,7 +45,6 @@ watch(props, async ({ stream }) => {
 
 const join = (e: Event) => {
   e.preventDefault()
-  if (props.joinDisable) return
   emit('join', {...userInfo})
 }
 

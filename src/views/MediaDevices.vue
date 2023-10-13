@@ -2,7 +2,7 @@
   <div class="rtc">
     <div class="rtc-body" :class={open}>
       <template v-if="!isInRoom">
-        <Join :stream="localStream" :joinDisable="joinDisable" @join="join" />
+        <Join :stream="localStream" @join="join" />
       </template>
       <template v-else>
         <MemberList :memberList="memberList" :mainStream="displayStream" />
@@ -11,7 +11,6 @@
         <device-select
           ref="deviceSelect"
           v-model="deviceInfo"
-          v-model:joinDisable="joinDisable"
           :state="isInRoom"
           @audioChange="audioChange"
           @cameraChange="cameraChange"
@@ -52,8 +51,6 @@ const deviceInfo = ref<ModelValue>({
   cameraDeviceId: '',
   dispalyEnabled: false
 })
-
-const joinDisable = ref<boolean>(true)
 
 const host = import.meta.env.VITE_HOST
 const port = import.meta.env.VITE_PORT
@@ -105,12 +102,8 @@ let rtc = new RTCClient({
     ],
   },
   constraints: {
-    audio: deviceInfo.value.audioDisabled ? false : {
-      deviceId: deviceInfo.value.audioDeviceId
-    },
-    video: deviceInfo.value.cameraDisabled ? false : {
-      deviceId: deviceInfo.value.cameraDeviceId
-    }
+    audio: true,
+    video: true
   },
   socketConfig: {
     host,
@@ -139,12 +132,27 @@ rtc.on('localStreamChange', async (stream) => {
   localStream.value = stream
 })
 
+rtc.getAudioDeviceInfo().then((audio) => {
+  deviceInfo.value.audioDeviceId = audio.deviceId
+}).catch(() => {
+  deviceInfo.value.audioDisabled = true
+})
+
+rtc.getVideoDeviceInfo().then((video) => {
+  deviceInfo.value.cameraDeviceId = video.deviceId
+}).catch(() => {
+  deviceInfo.value.cameraDisabled = true
+})
+
 // 麦克风设备切换禁用状态
 const audioDisabledToggle = (value: boolean) => {
   if (value) {
     rtc.disableAudio()
   } else {
-    rtc.enableAudio()
+    rtc.enableAudio().catch(() => {
+      onError('启用麦克风失败')
+      deviceInfo.value.audioDisabled = true
+    })
   }
 }
 // 摄像头设备切换禁用状态
@@ -152,7 +160,10 @@ const cameraDisabledToggle = (value: boolean) => {
   if (value) {
     rtc.disableVideo()
   } else {
-    rtc.enableVideo()
+    rtc.enableVideo().catch((e) => {
+      onError('启用摄像头失败')
+      deviceInfo.value.cameraDisabled = true
+    })
   }
 }
 
