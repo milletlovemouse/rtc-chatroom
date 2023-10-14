@@ -160,7 +160,7 @@ watch(() => props.modelValue, (data) => {
   deviceInfo = {...data}  
 }, { deep: true })
 const updataModelValue = (data: Partial<ModelValue>) => {
-  deviceInfo = { ...deviceInfo, ...data } // update:modelValue异步防抖更新，将修改的数据保存
+  deviceInfo = { ...deviceInfo, ...data } // update:modelValue异步更新，将修改的数据保存
   emit('update:modelValue', { ...props.modelValue, ...deviceInfo })
 }
 // 麦克风设备切换禁用状态

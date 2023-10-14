@@ -1,6 +1,6 @@
 <template>
   <a-layout>
-    <a-layout-sider v-if="isDevelopment" v-model:collapsed="collapsed" :trigger="null" collapsible>
+    <a-layout-sider v-if="show" v-model:collapsed="collapsed" :trigger="null" collapsible>
       <div class="logo" />
       <a-menu v-model:selectedKeys="selectedKeys" theme="dark" mode="inline">
         <a-menu-item v-for="router in routerList" :key="router.title" @click="to(router.component)">
@@ -10,7 +10,7 @@
       </a-menu>
     </a-layout-sider>
     <a-layout>
-      <a-layout-header v-if="isDevelopment" style="background: #fff; padding: 0 16px">
+      <a-layout-header v-if="show" style="background: #fff; padding: 0 16px">
         <menu-unfold-outlined
           v-if="collapsed"
           class="trigger"
@@ -19,11 +19,9 @@
         <menu-fold-outlined v-else class="trigger" @click="() => (collapsed = !collapsed)" />
       </a-layout-header>
       <a-layout-content :style="mainStyle">
-        <template v-if="show">
-          <component :is='component'></component>
-        </template>
+        <component :is='component'></component>
       </a-layout-content>
-      <a-layout-footer v-if="isDevelopment" style="text-align: center">
+      <a-layout-footer v-if="show" style="text-align: center">
         Tool-library ©2023
       </a-layout-footer>
     </a-layout>
@@ -32,7 +30,7 @@
 
 <script lang="ts" setup>
 import { FileTextFilled, CameraFilled, PictureFilled, CloudDownloadOutlined } from '@ant-design/icons-vue';
-import { defineAsyncComponent, ref, markRaw, shallowRef, reactive, shallowReactive  } from 'vue';
+import { defineAsyncComponent, ref, markRaw, shallowRef, reactive, shallowReactive, computed  } from 'vue';
 import { theme } from 'ant-design-vue';
 import Clipboard from '@/views/Clipboard.vue';
 import MediaDevices from '@/views/MediaDevices.vue';
@@ -46,6 +44,9 @@ import {
 type Component = ReturnType<typeof defineAsyncComponent>
 
 const isDevelopment = ref(import.meta.env.VITE_NODE_ENV === 'development')
+const isDevMode = ref(import.meta.env.VITE_DEV_MODE === 'true')
+const show = computed(() => isDevelopment.value && isDevMode.value)
+
 const selectedKeys = ref<string[]>(['Clipboard']);
 const collapsed = ref<boolean>(false);
 
@@ -55,23 +56,21 @@ const routerList = shallowReactive([
   { title: 'Canvas', component: Canvas, icon: PictureFilled },
 ])
 
-const show = shallowRef<boolean>(false)
 const component = shallowRef<Component>(null)
 
 async function to(comp: Component) {
-  component.value = isDevelopment.value ? comp : MediaDevices
-  show.value = true
+  component.value = show.value ? comp : MediaDevices
 }
 
 to(routerList[0].component)
 const { token } = theme.useToken()
 const mainStyle = reactive({
-  '--main-height': isDevelopment.value ? 'calc(100vh - 70px - 64px - 24px)' : '100vh',
-  margin: isDevelopment.value ? '24px 16px 0' : '0',
+  '--main-height': show.value ? 'calc(100vh - 70px - 64px - 24px)' : '100vh',
+  margin: show.value ? '24px 16px 0' : '0',
   padding: '5px',
   background: '#2b2b2b',
   minHeight: 'var(--main-height)',
-  borderRadius: isDevelopment.value ? '6px' : '0px',
+  borderRadius: show.value ? '6px' : '0px',
   color: '#fff',
 })
 </script>
