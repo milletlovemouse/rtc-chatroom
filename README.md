@@ -1,3 +1,42 @@
+## 项目介绍
+### 项目概述
+&emsp;&emsp;基于WebRTC实现的能够视频通话、共享屏幕、设备启停、发送消息的匿名视频聊天室，项目并不依赖数据库，只依赖信令服务器完成WebRTC连接与断开后重连，重点都在前端部分。
+
+&emsp;&emsp;目前项目还比较小，只有一个单页面和几个组件，都是些业务代码，支撑功能实现的代码本菜鸡封装为了一个SDK，项目重点就在于此，文章后面会给出此SDK的API文档。
+
+- 前端技术栈：有Vue3和React两个版本
+  - Vue3：`Vue3`、`TypeScript`、`Vite4.4`、`Socket.IO`
+  - React：`React18`、`TypeScript`、`Webpack5`、`Socket.IO`
+- 后端技术栈：`Express`、`Socket.IO`
+- 代码仓库：
+  - Vue3：[milletlovemouse/Tool-library(github.com)](https://github.com/milletlovemouse/Tool-library)
+  - React：[milletlovemouse/chatroom(github.com)](https://github.com/milletlovemouse/chatroom)
+  - Server：[milletlovemouse/chatroom-server(github.com)](https://github.com/milletlovemouse/chatroom-server)
+
+### 项目展示
+![image.png](https://raw.githubusercontent.com/milletlovemouse/github-file-library/blob/main/images/chatroom_readme.png)
+
+
+### 启动项目
+> npm
+```shell
+npm install
+
+npm run dev
+```
+> yarn
+```shell
+yarn
+
+yarn dev
+```
+> pnpm
+```shell
+pnpm install
+
+pnpm dev
+```
+
 ## RTCClient()
 ### Syntax
 `new RTCClient(options)`
@@ -8,20 +47,12 @@
 - `constraints:`MediaStreamConstraints
 - `socketConfig:`
    - `host:`域名或者ip
-   - `port:`端口
+   - `port?:`端口
 ```typescript
 import RTCClient from 'rtc-client';
 
 const host = 'https://127.0.0.1'
 const port = 3000
-
-const deviceInfo = {
-  audioDisabled: false,
-  cameraDisabled: false,
-  audioDeviceId: '',
-  cameraDeviceId: '',
-  dispalyEnabled: false
-}
 
 const rtc = new RTCClient({
   configuration: {
@@ -34,12 +65,8 @@ const rtc = new RTCClient({
     ],
   },
   constraints: {
-    audio: deviceInfo.value.audioDisabled ? false : {
-      deviceId: deviceInfo.value.audioDeviceId
-    },
-    video: deviceInfo.value.cameraDisabled ? false : {
-      deviceId: deviceInfo.value.cameraDeviceId
-    }
+    audio: true,
+    video: true
   },
   socketConfig: {
     host,
