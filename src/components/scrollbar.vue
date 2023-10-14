@@ -187,7 +187,7 @@ function onMousemove(e: MouseEvent) {
     scrollTop = Math.max(Math.min(scrollTop + (y - oldY) * baseNumber * scaleHeight, height - parentHeight), 0)
     container.value.scrollTop = scrollTop
   }
-  scrollTo(scrollLeft, scrollTop, { async: false })
+  scrollTo(scrollLeft, scrollTop)
 }
 
 function onMouseup() {
@@ -215,7 +215,7 @@ function scroll(e: WheelEvent) {
   const { width: innerWidth, height: innerHeight } = inner.value.getBoundingClientRect()
   if (e.type === 'wheel') {
     scrollLeft = stpeCache(scrollLeft, stpe)
-    scrollTo(scrollLeft, 0, { async: false })
+    scrollTo(scrollLeft, 0)
     return
   } else {
     if (type === 'x') {
@@ -240,33 +240,29 @@ function scroll(e: WheelEvent) {
 }
 
 function scrollTo(left: number, top: number, option?: {
-  async?: boolean,
   behavior?: ScrollBehavior
 }) {
-  const { async, behavior = 'smooth' } = option || {}
-  const task = () => container.value.scrollTo({
+  const { behavior = 'auto' } = option || {}
+  container.value.scrollTo({
     top,
     left,
     behavior
   })
-  if (async) {
-    setTimeout(task, 1)
-    return
-  }
-  task()
 }
 
 function scrollToTop() {
   scrollTo(0, 0)
 }
+const toBottom = debounce(() => scrollTo(0, container.value.scrollHeight), 50)
 function scrollToBottom() {
-  scrollTo(0, container.value.scrollHeight)
+  toBottom()
 }
 function scrollToLeft() {
   scrollTo(0, 0)
 }
+const toRight = debounce(() => scrollTo(container.value.scrollWidth, 0), 50)
 function scrollToRight() {
-  scrollTo(container.value.scrollWidth, 0)
+  toRight()
 }
 
 defineExpose({

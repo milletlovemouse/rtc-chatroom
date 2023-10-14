@@ -636,6 +636,18 @@ export default class RTCClient extends SocketClient {
   private async dataChannelMessage(connectorInfo: ConnectorInfo, event: MessageEvent) {
     const message = JSON.parse(event.data) as ChannelMessageData
     const { type, data  } = message
+    const chunksMerge = (id: string) => {
+      const chunks = connectorInfo.chunks[id]
+      const message = connectorInfo.messageList[id]
+      const { FQ, name } = message.fileInfo
+      if (chunks && chunks.length === FQ) {
+        delete connectorInfo.messageList[id]
+        delete connectorInfo.chunks[id]
+        const flieChunks = chunks.sort((a, b) => a[1] - b[1]).map(([chunk]) => chunk)
+        message.fileInfo.file = sliceBase64ToFile(flieChunks, name)
+        this.emitter.emit(MittEventName.MESSAGE, message)
+      }
+    }
     if (type === MessageEventType.CLOSE) {
       this.closeMessage(data as { connectorId: string })
     } else if (type === MessageEventType.CHAT) {
@@ -657,19 +669,6 @@ export default class RTCClient extends SocketClient {
       type === MessageEventType.ANSWER
     ) {
       this.reconnectWork(connectorInfo, message, this.channelSend)
-    }
-
-    function chunksMerge(id: string) {
-      const chunks = connectorInfo.chunks[id]
-      const message = connectorInfo.messageList[id]
-      const { FQ, name } = message.fileInfo
-      if (chunks && chunks.length === FQ) {
-        delete connectorInfo.messageList[id]
-        delete connectorInfo.chunks[id]
-        const flieChunks = chunks.sort((a, b) => a[1] - b[1]).map(([chunk]) => chunk)
-        message.fileInfo.file = sliceBase64ToFile(flieChunks, name)
-        this.emitter.emit(MittEventName.MESSAGE, message)
-      }
     }
   }
 
@@ -924,6 +923,7 @@ export default class RTCClient extends SocketClient {
       delete data.fileInfo.chunks
     }
     this.connectorInfoMap.forEach(connectorInfo => {
+      if (connectorInfo.streamType !== StreamTypeEnum.USER) return
       this.channelSend(connectorInfo, {
         type: MessageEventType.CHAT,
         data
