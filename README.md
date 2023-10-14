@@ -14,7 +14,7 @@
   - Server：[milletlovemouse/chatroom-server(github.com)](https://github.com/milletlovemouse/chatroom-server)
 
 ### 项目展示
-![image.png](https://raw.githubusercontent.com/milletlovemouse/github-file-library/blob/main/images/chatroom_readme.png)
+![image.png](https://raw.githubusercontent.com/milletlovemouse/github-file-library/main/images/chatroom_readme.png)
 
 
 ### 启动项目
