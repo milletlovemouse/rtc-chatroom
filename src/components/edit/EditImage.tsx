@@ -346,7 +346,7 @@ export const EditImage = defineComponent({
       canvas.height = height
       const ctx = canvas.getContext('2d')
       ctx.drawImage(image.value, left, top, canvasWidth, canvasHeight, 0, 0, width, height)
-      const dataURL = canvas.toDataURL("image/png")
+      const dataURL = canvas.toDataURL(props.img.file.type)
       cutState.value = false
       reset()
       props.save({

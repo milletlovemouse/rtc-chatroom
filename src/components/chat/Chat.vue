@@ -5,7 +5,7 @@
       <Icon class="tool" size="1.75em"><ImageOutline v-select-file="selectImageConfig" /></Icon>
       <Icon class="tool" size="1.75em"><DriveFileMoveRound v-select-file="selectFileConfig" /></Icon>
     </div>
-    <file-list :file-list="fileList" @remove="remove" @updateImage="updateImage"/>
+    <file-list :file-list="fileMessageList" @remove="remove" @updateImage="updateImage"/>
     <div class="send">
       <input
         class="chat-input"
@@ -28,7 +28,7 @@ import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { formatDate } from '/@/utils/formatDate';
 import getFileTypeImage from '/@/utils/file-type-image';
 import MessageList from '/@/components/chat/message-list.vue';
-import FileList from '/@/components/file-list.vue';
+import FileList, { Img } from '/@/components/file-list.vue';
 import { Message } from '/@/utils/WebRTC/rtc-client';
 
 type FileInfo = Awaited<ReturnType<typeof getFileInfo>>
@@ -72,18 +72,14 @@ const selectFileConfig = {
   max: 1024 * 1024 * 1024,
 }
 const maxlength = ref(100)
-const fileMessageList = reactive<MessageItem[]>([])
-const fileList = computed(() => fileMessageList.map(item => item.fileInfo))
+const fileMessageList = reactive<Img[]>([])
 
 function remove(_, index: number) {
   fileMessageList.splice(index, 1);
 }
 
-function updateImage(img: FileInfo, index: number) {
-  fileMessageList[index].fileInfo = {
-    ...fileMessageList[index].fileInfo,
-    ...img
-  }
+function updateImage(img: Img, index: number) {
+  fileMessageList[index].file = img.file
 }
 
 function sendMessage() {
@@ -111,9 +107,21 @@ function sendTextMessage() {
   inputValue.value = ''
 }
 
-function sendFileMessage() {
+async function sendFileMessage() {
   while(fileMessageList.length) {
-    const messageItem = fileMessageList.shift()
+    const fileItem = fileMessageList.shift()
+    const { username } = rtc.userInfo
+    const date = new Date
+    const { HHmmss } = formatDate(date)
+    const messageItem: MessageItem = {
+      id: crypto.randomUUID(),
+      isSelf: true,
+      username,
+      HHmmss,
+      type: 'file',
+      fileInfo: await getFileInfo(fileItem.file),
+      avatar: createAvatar(username[0])
+    }
     rtc.channelSendMesage(messageItem)
     messageList.push(messageItem)
     delete messageItem.fileInfo.chunks
@@ -122,20 +130,11 @@ function sendFileMessage() {
 
 async function uploadFile(files: File[], err: Error, inputFiles: File[]) {
   err && console.error(err);
-  const { username } = rtc.userInfo
-  const date = new Date
-  const { HHmmss } = formatDate(date)
   files.forEach(async file => {
-    const messageItem: MessageItem = {
-      id: crypto.randomUUID(),
-      isSelf: true,
-      username,
-      HHmmss,
-      type: 'file',
-      fileInfo: await getFileInfo(file),
-      avatar: createAvatar(username[0])
-    }
-    fileMessageList.push(messageItem)
+    fileMessageList.push({
+      file,
+      url: getFileTypeImage(file.name)
+    })
   })
 }
 

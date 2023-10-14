@@ -298,35 +298,49 @@ export default class RTCClient extends SocketClient {
 
   public getVideoDeviceInfo() {
     return new Promise<MediaDeviceInfo>(async(resolve, reject) => {
+      let videoTracks: MediaStreamTrack[]
       try {
-        const videoTracks = await this.mediaDevices.getUserVideoTracks()
-        if (!videoTracks || !videoTracks.length) {
-          reject(new Error('video device not found'))
+        videoTracks = await this.mediaDevices.getUserMediaStreamTracks()
+      } catch {
+        try {
+          videoTracks = await this.mediaDevices.getUserVideoTracks()
+        } catch (error) {
+          reject(error)
           return
         }
-        const deviceInfoList = await this.getDevicesInfoList()
-        const videoDeviceInfo = deviceInfoList.find(item => item.label === videoTracks[0].label && item.kind === KindEnum.VIDEOINPUT)
-        resolve(videoDeviceInfo)
-      } catch (error) {
-        reject(error)
       }
+      const videoTrack = videoTracks.find(track => track.kind === 'video')
+      if (!videoTrack) {
+        reject(new Error('video device not found'))
+        return
+      }
+      const deviceInfoList = await this.getDevicesInfoList()
+      const videoDeviceInfo = deviceInfoList.find(item => item.label === videoTrack.label && item.kind === KindEnum.VIDEOINPUT)
+      resolve(videoDeviceInfo)
     })
   }
 
   public getAudioDeviceInfo() {
     return new Promise<MediaDeviceInfo>(async(resolve, reject) => {
+      let audioTracks: MediaStreamTrack[]
       try {
-        const audioTracks = await this.mediaDevices.getUserAudioTracks()
-        if (!audioTracks || !audioTracks.length) {
-          reject(new Error('audio device not found'))
+        audioTracks = await this.mediaDevices.getUserMediaStreamTracks()
+      } catch {
+        try {
+          audioTracks = await this.mediaDevices.getUserAudioTracks()
+        } catch (error) {
+          reject(error)
           return
         }
-        const deviceInfoList = await this.getDevicesInfoList()
-        const audioDeviceInfo = deviceInfoList.find(item => item.label === audioTracks[0].label && item.kind === KindEnum.AUDIOINPUT)
-        resolve(audioDeviceInfo)
-      } catch (error) {
-        reject(error)
       }
+      const audioTrack = audioTracks.find(track => track.kind === 'video')
+      if (!audioTrack) {
+        reject(new Error('video device not found'))
+        return
+      }
+      const deviceInfoList = await this.getDevicesInfoList()
+      const audioDeviceInfo = deviceInfoList.find(item => item.label === audioTracks[0].label && item.kind === KindEnum.AUDIOINPUT)
+      resolve(audioDeviceInfo)
     })
   }
 
@@ -414,16 +428,20 @@ export default class RTCClient extends SocketClient {
    * 添加共享屏幕媒体流
    * @param connectorInfo 
    */
-  private async addDisplayStream(connectorInfo: ConnectorInfo) {
-    try {
-      const { webrtc } = connectorInfo
-      const localDisplayStream = await this.mediaDevices.getDisplayMedia()
-      const audioTracks = localDisplayStream.getAudioTracks()
-      const videoTracks = localDisplayStream.getVideoTracks()
-      webrtc.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
-    } catch (error) {
-      console.error(error.message, error.name)
-    }
+  private addDisplayStream(connectorInfo: ConnectorInfo) {
+    return new Promise<void>(async (resolve, reject) => {
+      try {
+        const { webrtc } = connectorInfo
+        const localDisplayStream = await this.mediaDevices.getDisplayMedia()
+        const audioTracks = localDisplayStream.getAudioTracks()
+        const videoTracks = localDisplayStream.getVideoTracks()
+        webrtc.addTrack([...videoTracks, ...audioTracks], localDisplayStream)
+        resolve()
+      } catch (error) {
+        console.error(error.message, error.name)
+        reject(error)
+      }
+    })
   }
 
   /**
@@ -486,7 +504,6 @@ export default class RTCClient extends SocketClient {
    * 暴露取消屏幕共享接口
    */
   public cancelShareDisplayMedia() {
-    this.emitter.emit(MittEventName.DISPLAY_STREAM_CHANGE, null)
     this.connectorInfoMap.forEach(connectorInfo => {
       if (connectorInfo.streamType === StreamTypeEnum.DISPLAY) {
         const { remoteConnectorId } = connectorInfo
@@ -505,6 +522,7 @@ export default class RTCClient extends SocketClient {
         this.closeConnectorById(connectorId)
       }
     })
+    this.emitter.emit(MittEventName.DISPLAY_STREAM_CHANGE, null)
   }
 
   /**
@@ -536,6 +554,7 @@ export default class RTCClient extends SocketClient {
       }
     })
     this.sendleaveMessage(data)
+    this.closeDisplayConnector()
     this.closeAllConnector()
     this._state = UserState.LEAVE
   }

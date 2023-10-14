@@ -30,7 +30,7 @@ import { Merge } from '../utils/type';
 import { useEditImage } from './edit/EditImage';
 import { MenuItem, MenuList } from './menu/menu';
 import scrollbar from '@/components/scrollbar.vue';
-type Img = {
+export type Img = {
   file: File,
   url: string
 }
