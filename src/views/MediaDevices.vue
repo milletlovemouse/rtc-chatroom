@@ -17,7 +17,6 @@
           @audioDisabledToggle="audioDisabledToggle"
           @cameraDisabledToggle="cameraDisabledToggle"
           @dispalyEnabledToggle="shareDisplayMedia"
-          @resolutionChange="resolutionChange"
           @chatBoxToggle="chatBoxToggle"
           @exit="exit" />
       </div> 
@@ -184,7 +183,8 @@ async function shareDisplayMedia(value: boolean) {
     rtc.cancelShareDisplayMedia()
     return
   }
-  rtc.shareDisplayMedia().catch(() => {
+  rtc.shareDisplayMedia().catch((err) => {
+    onError(err.message)
     deviceInfo.value.dispalyEnabled = false
   })
 }
@@ -194,11 +194,6 @@ async function shareDisplayMedia(value: boolean) {
     localStream.value = stream
   })
 })()
-
-// 切换分辨率
-const resolutionChange = (constraints: MediaTrackConstraints) => {
-  // rtc.setVideoSettings(constraints)
-}
 
 const open = ref(false)
 const chat = ref(null)

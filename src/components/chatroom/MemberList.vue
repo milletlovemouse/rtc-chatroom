@@ -57,8 +57,10 @@ const mainStream = computed(() => props.mainStream)
 
 watch(() => mainStream.value, async () => {
   await nextTick()
-  mainVideo.value?.load()
-  mainVideo.value?.play()
+  if (!mainVideo.value) return
+  mainVideo.value.onloadedmetadata = () => {
+    mainVideo.value.play();
+  };
 })
 
 watch(() => memberList.value, async () => {
@@ -75,8 +77,10 @@ watch(() => memberList.value, async () => {
       index = audioIndex++
     } else return
     const mediaEl = mediaList[index]
-    mediaEl?.load()
-    mediaEl?.play()
+    if (!mediaEl) return
+    mediaEl.onloadedmetadata = () => {
+      mediaEl.play();
+    };
   })
 }, { deep: true, immediate: true})
 

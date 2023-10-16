@@ -471,16 +471,13 @@ export default class RTCClient extends SocketClient {
    */
   public async shareDisplayMedia() {
     const webrtcList = Array.from(this.connectorInfoMap.values())
-    const isDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.DISPLAY)
     const isRemoteDisplay = webrtcList.some(item => item.streamType === StreamTypeEnum.REMOTE_DISPLAY)
-    if (isDisplay) {
-      console.log('你正在共享屏幕')
-      return await this.getDisplayStream()
+    if (this._displayState) {
+      return Promise.reject(new Error('你正在屏幕共享'))
     }
 
     if (isRemoteDisplay) {
-      console.log('存在远程共享屏幕')
-      return
+      return Promise.reject(new Error('存在远程共享屏幕'))
     }
 
     try {
@@ -504,6 +501,7 @@ export default class RTCClient extends SocketClient {
    * 暴露取消屏幕共享接口
    */
   public cancelShareDisplayMedia() {
+    if (!this._displayState) return
     this.connectorInfoMap.forEach(connectorInfo => {
       if (connectorInfo.streamType === StreamTypeEnum.DISPLAY) {
         const { remoteConnectorId } = connectorInfo

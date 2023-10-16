@@ -33,20 +33,6 @@
         shape="circle"
         :icon="h(Icon, {class: 'anticon'}, () => h(props.modelValue.cameraDisabled ? VideoOff48Regular : Video48Regular))"
       />
-      &nbsp;
-      <a-cascader
-        v-if="false"
-        :value="props.modelValue.resolution || []"
-        style="width: 120px"
-        :allowClear="false"
-        :options="resolutionOptions"
-        @change="resolutionChange"
-      >
-        <template #suffixIcon><Icon :size="fontSize"><VideoSettingsOutlined /></Icon></template>
-        <template #expandIcon>
-          <!-- <ShrinkOutlined /> -->
-        </template>
-      </a-cascader>
     </a-space>
     <template v-if="props.state">
       &nbsp;
@@ -111,7 +97,6 @@ const emit = defineEmits<{
   cameraDisabledToggle: [value: boolean],
   audioChange: [value: string],
   cameraChange: [value: string],
-  resolutionChange: [value: MediaTrackConstraints],
   chatBoxToggle: [value: boolean],
   exit: [],
 }>()
@@ -124,36 +109,6 @@ const fontSize = ref('1.3em')
 type Options = Array<DeviceInfo>
 const audioMediaStreamTrackOptions = ref<Options>([])
 const cameraMediaStreamTrackOptions = ref<Options>([])
-const resolutionMax = ref(0)
-const resolution = ref<{
-  label: string;
-  value: Resolution;
-}[]>([
-  { label: '2160p 4K', value: 2160 },
-  { label: '1440p 2K', value: 1440 },
-  { label: '1080p HD', value: 1080 },
-  { label: '720p', value: 720 },
-  { label: '480p', value: 480 },
-  { label: '360p', value: 360 },
-  { label: '240p', value: 240 },
-  { label: '144p', value: 144 },
-  { label: '自动', value: 0 },
-])
-const proportion = ref([
-  { label: '1:1', value: 1 },
-  { label: '4:3', value: 4 / 3 },
-  { label: '16:9', value: 16 / 9 },
-  { label: '21:9', value: 21 / 9 },
-])
-const resolutionOptions = computed(() => {
-  return resolution.value.filter((item) => item.value <= resolutionMax.value)
-    .map(item => {
-      if (item.value === 0) {
-        return item
-      }
-      return { ...item, children: proportion.value }
-    })
-})
 
 let deviceInfo: ModelValue = null
 watch(() => props.modelValue, (data) => {
@@ -204,12 +159,6 @@ const dispalyEnabledToggle = () => {
   emit('dispalyEnabledToggle', enabled)
 }
 
-const resolutionChange = (resolution: number[]) => {
-  console.log(resolution);
-  updataModelValue({ resolution })
-  emit('resolutionChange', createConstraints(resolution))
-}
-
 let open = false
 const chatBoxToggle = () => {
   open = !open
@@ -250,32 +199,6 @@ defineExpose({
   reset,
   updateDeviceId
 })
-
-function createConstraints(resolution: number[]): MediaTrackConstraints {
-  const [r, aspectRatio] = resolution
-  if (r === 0) {
-    return null
-  }
-  const width = r * aspectRatio
-  const constraints = {
-    aspectRatio,
-    width: { ideal: width },
-    advanced: [
-      { width: width }, 
-      { aspectRatio }
-    ],
-  }
-  return constraints
-}
-
-async function initResolution() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-  const videoTrack = stream.getVideoTracks()[0]
-  const settings = videoTrack.getSettings()
-  const { height } = settings
-  resolutionMax.value = height
-  updataModelValue({ resolution: [0] })
-}
 
 let videoTips = true
 async function initVideoDevice() {

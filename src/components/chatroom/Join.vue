@@ -39,7 +39,9 @@ const userInfo = reactive({
 watch(props, async ({ stream }) => {
   await nextTick()
   if (stream) {
-    video.value.play()
+    video.value.onloadedmetadata = () => {
+      video.value.play();
+    };
   }
 }, { immediate: true })
 
