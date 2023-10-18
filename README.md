@@ -9,14 +9,18 @@
   - React：`React18`、`TypeScript`、`Webpack5`、`Socket.IO`
 - 后端技术栈：`Express`、`Socket.IO`
 - 代码仓库：
-  - Vue3：[milletlovemouse/Tool-library(github.com)](https://github.com/milletlovemouse/Tool-library)
+  - Vue3：[milletlovemouse/rtc-chatroom(github.com)](https://github.com/milletlovemouse/rtc-chatroom)
   - React：[milletlovemouse/chatroom(github.com)](https://github.com/milletlovemouse/chatroom)
   - Server：[milletlovemouse/chatroom-server(github.com)](https://github.com/milletlovemouse/chatroom-server)
 
 ### 项目展示
 ![image.png](https://raw.githubusercontent.com/milletlovemouse/github-file-library/main/images/chatroom_readme.png)
 
-<p align=center><a href="https://www.bilibili.com/video/BV1194y187mc/?share_source=copy_web&vd_source=340ae8bb00ff31aa830e5dc42df14f8b">B站传送门</a></p>
+<p align=center>
+  <a target="_blank" href="https://www.bilibili.com/video/BV1194y187mc/?share_source=copy_web&vd_source=340ae8bb00ff31aa830e5dc42df14f8b">B站传送门</a>
+  &emsp;
+  <a target="_blank" href="https://rtcchatroom.cn/">预览体验</a>
+</p>
 
 ### 启动项目
 > npm
