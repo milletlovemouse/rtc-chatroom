@@ -189,24 +189,24 @@ export const EditImage = defineComponent({
       }
 
       function updateLeft() {
-        width = right - x
+        width = Math.max(right - x, 0)
         cutInfo.value.left = (x - parentLeft) + 'px'
         cutInfo.value.width = width + 'px'
         updateMaskStyle(rect, parentRect)
       }
       function updateTop() {
-        height = bottom - y
+        height = Math.max(bottom - y, 0)
         cutInfo.value.top = y - parentTop + 'px'
         cutInfo.value.height = height + 'px'
         updateMaskStyle(rect, parentRect)
       }
       function updateWidth() {
-        width = x - left
+        width = Math.max(x - left, 0)
         cutInfo.value.width = width + 'px'
         updateMaskStyle(rect, parentRect)
       }
       function updateHeight() {
-        height = y - top
+        height = Math.max(y - top, 0)
         cutInfo.value.height = height + 'px'
         updateMaskStyle(rect, parentRect)
       }
