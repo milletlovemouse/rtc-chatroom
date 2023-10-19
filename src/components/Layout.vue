@@ -29,12 +29,13 @@
 </template>
 
 <script lang="ts" setup>
-import { FileTextFilled, CameraFilled, PictureFilled, CloudDownloadOutlined } from '@ant-design/icons-vue';
+import { FileTextFilled, CameraFilled, PictureFilled, AudioOutlined } from '@ant-design/icons-vue';
 import { defineAsyncComponent, ref, markRaw, shallowRef, reactive, shallowReactive, computed  } from 'vue';
 import { theme } from 'ant-design-vue';
-import Clipboard from '@/views/Clipboard.vue';
-import MediaDevices from '@/views/MediaDevices.vue';
-import Canvas from '@/views/Canvas.vue';
+import Clipboard from '@/test/Clipboard.vue';
+import ChatRoom from '@/views/ChatRoom.vue';
+import Canvas from '@/test/Canvas.vue';
+import AudioVisualizer from '@/test/AudioVisualizer.vue';
 import {
   UserOutlined,
   MenuUnfoldOutlined,
@@ -47,13 +48,14 @@ const isDevelopment = ref(import.meta.env.VITE_NODE_ENV === 'development')
 const isDevMode = ref(import.meta.env.VITE_DEV_MODE === 'true')
 const show = computed(() => isDevelopment.value && isDevMode.value)
 
-const selectedKeys = ref<string[]>(['Clipboard']);
+const selectedKeys = ref<string[]>(['ChatRoom']);
 const collapsed = ref<boolean>(false);
 
 const routerList = shallowReactive([
+  { title: 'ChatRoom', component: ChatRoom, icon: CameraFilled },
   { title: 'Clipboard', component: Clipboard, icon: FileTextFilled },
-  { title: 'MediaDevices', component: MediaDevices, icon: CameraFilled },
   { title: 'Canvas', component: Canvas, icon: PictureFilled },
+  { title: 'AudioVisualizer', component: AudioVisualizer, icon: AudioOutlined },
 ])
 
 const component = shallowRef<Component>(null)
@@ -69,7 +71,7 @@ const mainStyle = reactive({
   margin: show.value ? '24px 16px 0' : '0',
   padding: '5px',
   background: '#2b2b2b',
-  minHeight: 'var(--main-height)',
+  height: 'var(--main-height)',
   borderRadius: show.value ? '6px' : '0px',
   color: '#fff',
 })

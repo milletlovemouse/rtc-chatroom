@@ -1023,7 +1023,7 @@ export default class RTCClient extends SocketClient {
       localStream.addTrack(track);
     }
     this.connectorInfoMap.forEach(async (connectorInfo) => {
-      const { streamType, webrtc: { peerConnection: pc } } = connectorInfo;
+      const { streamType } = connectorInfo;
       if (streamType === StreamTypeEnum.DISPLAY || streamType === StreamTypeEnum.REMOTE_DISPLAY) {
         return;
       }
@@ -1035,11 +1035,11 @@ export default class RTCClient extends SocketClient {
         type: ControlEnum.ADD
       });
     });
+    this.emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, await this.getLocalStream())
   }
 
   public async replaceVideoTrack(deviceId: string) {
     await this.replaceTrack(deviceId, KindEnum.VIDEO)
-    this.emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, await this.getLocalStream())
   }
 
   public async replaceAudioTrack(deviceId: string) {
@@ -1069,7 +1069,7 @@ export default class RTCClient extends SocketClient {
       }
     }
     this.connectorInfoMap.forEach(async (connectorInfo) => {
-      const { streamType, webrtc } = connectorInfo;
+      const { streamType } = connectorInfo;
       if (streamType === StreamTypeEnum.DISPLAY || streamType === StreamTypeEnum.REMOTE_DISPLAY) {
         return;
       }
@@ -1083,6 +1083,7 @@ export default class RTCClient extends SocketClient {
         type: state ? ControlEnum.ADD : ControlEnum.REMOVE,
       });
     });
+    this.emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, await this.getLocalStream())
   }
 
   public async disableAudio() {
@@ -1095,21 +1096,21 @@ export default class RTCClient extends SocketClient {
 
   public async disableVideo() {
     await this.deviceSwitch(false, KindEnum.VIDEO)
-    this.emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, null)
   }
 
   public async enableVideo() {
     await this.deviceSwitch(true, KindEnum.VIDEO)
-    this.emitter.emit(MittEventName.LOCAL_STREAM_CHANGE, await this.getLocalStream())
   }
 
   public async getLocalStream() {
     try {
       // 获取本地媒体流
+      if (!this.videoState && !this.audioState) return null
       const localStream = await navigator.mediaDevices.getUserMedia({
         ...this.streamConstraints,
-        audio: false
-      })
+        video: this.videoState,
+        audio: this.audioState,
+      })      
       return localStream
     } catch (error) {
       return Promise.reject(error)

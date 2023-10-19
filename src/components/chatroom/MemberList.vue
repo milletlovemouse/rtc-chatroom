@@ -6,13 +6,15 @@
           ref="videoList"
           v-if="connectorInfo.videoActive"
           :srcObject="connectorInfo.remoteStream"
+          :muted="connectorInfo.connectorId ==='local'"
         ></video>
         <UserIcon v-else />
         <audio
           ref="audioList"
-          v-if="!connectorInfo.videoActive && connectorInfo.audioActive"
+          v-if="connectorInfo.connectorId !=='local' && !connectorInfo.videoActive && connectorInfo.audioActive"
           :srcObject="connectorInfo.remoteStream"
         ></audio>
+        <canvas ref="canvas" v-if="connectorInfo.audioActive" width="30" height="30" style="border-radius: 50%"></canvas>
       </div>
     </div>
     <div class="question-master">
@@ -23,9 +25,10 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import UserIcon from '/@/components/chat/user-icon.vue';
 import { ConnectorInfoList, StreamType } from '/@/utils/WebRTC/rtc-client';
+import { audioVisible } from "@/utils/audio/audioVisualizer";
 
 const props = defineProps<{
   memberList: ConnectorInfoList,
@@ -63,26 +66,41 @@ watch(() => mainStream.value, async () => {
   };
 })
 
+let closes: (() => void)[] = []
+const canvas = ref<HTMLCanvasElement[]>(null)
+
 watch(() => memberList.value, async () => {
-  await nextTick()  
-  let videoIndex = 0, audioIndex = 0
-  memberList.value.forEach((connectorInfo) => {
-    console.log(connectorInfo);
+  await nextTick()
+  closes.forEach((close) => close())
+  let videoIndex = 0, audioIndex = 0, canvasIndex = 0
+  closes = memberList.value.map((connectorInfo) => {
     let mediaList: HTMLMediaElement[], index: number
+    let close = () => {}
+    console.log(connectorInfo.audioActive);
+    if (connectorInfo.audioActive) {
+      console.log(222);
+      
+      close = audioVisible(connectorInfo.remoteStream, canvas.value[canvasIndex++])
+    }
     if (connectorInfo.videoActive) {
       mediaList = videoList.value
       index = videoIndex++
     } else if (connectorInfo.audioActive) {
       mediaList = audioList.value
       index = audioIndex++
-    } else return
+    } else return close
     const mediaEl = mediaList[index]
-    if (!mediaEl) return
+    if (!mediaEl) return close
     mediaEl.onloadedmetadata = () => {
       mediaEl.play();
     };
+    return close
   })
 }, { deep: true, immediate: true})
+
+onUnmounted(() => {
+  closes.forEach((close) => close())
+})
 
 const display = computed(() => mainStream.value ? 'block' : 'grid')
 
@@ -133,6 +151,7 @@ const background = computed(() => mainStream.value ? '#222' : 'transparent')
     }
   }
   .video-box {
+    position: relative;
     padding: $padding;
     display: flex;
     justify-content: center;
@@ -143,7 +162,11 @@ const background = computed(() => mainStream.value ? '#222' : 'transparent')
       border-radius: 8px;
       object-fit: cover;
     }
-    
+    canvas {
+      position: absolute;
+      left: 20px;
+      bottom: 20px;
+    }
   }
   .question-master {
     display: flex;
