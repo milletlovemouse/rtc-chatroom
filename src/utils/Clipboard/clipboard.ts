@@ -1,4 +1,3 @@
-import { message } from 'ant-design-vue';
 import { fileAndBlobToBase64 } from '../fileUtils';
 import { useError, useSuccess } from '../message';
 

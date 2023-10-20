@@ -39,8 +39,6 @@ const selectFileOption = {
 async function handleBatchImport(files: FileList, err: Error, inputFiles: FileList) {
   const file = files[0];
   const blob = await fileToBlob(file);
-  // console.log(await fileAndBlobToBase64(blob));
-  
   writeClipImg(blob)
 }
 

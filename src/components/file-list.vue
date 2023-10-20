@@ -12,6 +12,7 @@
           :src="img.url"
           :title="img.file.name"
           :alt="img.file.name"
+          style="cursor: zoom-in"
         >
         <img
           v-else

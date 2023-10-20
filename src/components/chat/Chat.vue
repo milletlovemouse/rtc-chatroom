@@ -52,7 +52,6 @@ const rtc = inject<RTCClient>('rtc')
 rtc.on('message', async (message: MessageItem) =>{
   message.isSelf = false
   messageList.push(message)
-  console.log(message);
 })
 
 const inputValue = ref('')

@@ -7,12 +7,12 @@
     <form ref="form" class="form">
       <div class="input-box">
         <a-input v-model:value="userInfo.roomname" :bordered="false" required />
-        <span>Roomname</span>
+        <span>房间名</span>
         <i></i>
       </div>
       <div class="input-box">
         <a-input v-model:value="userInfo.username" :bordered="false" required />
-        <span>Username</span>
+        <span>用户名</span>
         <i></i>
       </div>
       <input class="submit" type="submit" value="加入房间">

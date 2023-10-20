@@ -76,10 +76,7 @@ watch(() => memberList.value, async () => {
   closes = memberList.value.map((connectorInfo) => {
     let mediaList: HTMLMediaElement[], index: number
     let close = () => {}
-    console.log(connectorInfo.audioActive);
     if (connectorInfo.audioActive) {
-      console.log(222);
-      
       close = audioVisible(connectorInfo.remoteStream, canvas.value[canvasIndex++])
     }
     if (connectorInfo.videoActive) {
