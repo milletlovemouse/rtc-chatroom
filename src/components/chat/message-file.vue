@@ -12,9 +12,11 @@
       <img
         v-if="isImage"
         v-menu="imageMenuList.map(menu => ({...menu, file: props.fileInfo.file}))"
+        v-preview="{url: srcObject, name: props.fileInfo.name}"
         :title="props.fileInfo.name"
         :src="srcObject"
         :alt="props.fileInfo.name"
+        style="cursor: zoom-in"
       />
       <img
         v-else

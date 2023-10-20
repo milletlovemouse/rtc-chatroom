@@ -1,0 +1,49 @@
+.previewImage {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 99999999999;
+  :global {
+    .mask-layer {
+      position: absolute;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: -1;
+    }
+    .preview-image-container {
+      display: inline;
+      position: relative;
+      max-width: 90%;
+      max-height: 90%;
+      margin: 0 auto;
+      .image {
+        width: 100%;
+        max-height: 100%;
+        object-fit: cover;
+        user-select: none;
+        -webkit-user-drag: none;
+        transition: scale 0.2s linear;
+      }
+    }
+    .close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 1.5em;
+      height: 1.5em;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 50%;
+      color: #fff;
+      font-size: 1.5em;
+      line-height: 1.5em;
+      font-weight: bold;
+      text-align: center;
+      cursor: pointer;
+    }
+  }
+}
