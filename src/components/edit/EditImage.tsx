@@ -1,6 +1,6 @@
 import { defineComponent, createApp, PropType, ref, App, onUnmounted, watch, nextTick } from "vue";
 import { SaveOutlined, ScissorOutlined, CloseOutlined } from "@ant-design/icons-vue";
-import { getImageOriginalSize } from "./utils";
+import { getPrimitiveImage } from "./utils";
 import style from "./EditImage.module.scss"
 import { base64ToFile } from "/@/utils/fileUtils";
 import useResizeObserver from "/@/hooks/useResizeObserver";
@@ -40,14 +40,6 @@ export const EditImage = defineComponent({
     }
   },
   setup(props) {
-    // 图片文件的尺寸
-    const originalSize: { width?: number, height?: number } = {}
-    watch(() => props.img.file, async (img) => {
-      const { width, height } = await getImageOriginalSize(img)
-      originalSize.width = width
-      originalSize.height = height
-    }, { immediate: true })
-
     const root = ref<HTMLElement>(null)
     const image = ref<HTMLImageElement>(null)
     // const canvas = ref<HTMLCanvasElement>(null)
@@ -332,27 +324,37 @@ export const EditImage = defineComponent({
       cutState.value = !cutState.value
       reset()
     }
-    const save = (e: Event) => {
+
+    const img = ref<Img>(props.img)
+    watch(() => props.img, () => {
+      img.value = props.img
+    }, { deep: true })
+    const save = async (e: Event) => {
       if (!region.value) return
       e.stopPropagation()
       const canvas = document.createElement('canvas')
-      const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
       const { width, height } = region.value.getBoundingClientRect()
-      const left = Number(cutInfo.value.left.replace('px', '')) * originalSize.width / imgWidth
-      const top = Number(cutInfo.value.top.replace('px', '')) * originalSize.height / imgHeight
-      const canvasWidth = width * originalSize.width / imgWidth
-      const canvasHeight = height * originalSize.height / imgHeight
-      canvas.width = width
-      canvas.height = height
+      const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
+      const { image: primitiveImage, close } = await getPrimitiveImage(img.value.file)
+      const { width: primitiveW, height: primitiveH } = primitiveImage
+      const left = Number(cutInfo.value.left.replace('px', '')) * primitiveW / imgWidth
+      const top = Number(cutInfo.value.top.replace('px', '')) * primitiveH / imgHeight
+      const canvasWidth = width * primitiveW / imgWidth
+      const canvasHeight = height * primitiveH/ imgHeight
+      canvas.width = canvasWidth
+      canvas.height = canvasHeight
       const ctx = canvas.getContext('2d')
-      ctx.drawImage(image.value, left, top, canvasWidth, canvasHeight, 0, 0, width, height)
-      const dataURL = canvas.toDataURL(props.img.file.type)
+      ctx.drawImage(primitiveImage, left, top, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      const dataURL = canvas.toDataURL(img.value.file.type)
+      const newImg = {
+        url: dataURL,
+        file: base64ToFile(dataURL, img.value.file.name)
+      }
+      props.save(newImg, img.value)
+      img.value = newImg
       cutState.value = false
       reset()
-      props.save({
-        url: dataURL,
-        file: base64ToFile(dataURL, props.img.file.name)
-      }, props.img)
+      close()
     }
     const reset = () => {
       if (!cutState.value) {
@@ -391,7 +393,7 @@ export const EditImage = defineComponent({
         <div class="close" onClick={props.close}><CloseOutlined /></div>
         <div class="mask-layer"></div>
         <div class="edit-image-container">
-          <img ref={image} class="image" src={props.img.url} alt={props.img.file.name} />
+          <img ref={image} class="image" src={img.value.url} alt={img.value.file.name} />
           {/* <canvas ref={canvas} class={style.canvas}></canvas> */}
           { cutState.value
             ? <div class="cut">
@@ -416,12 +418,6 @@ export const EditImage = defineComponent({
 
 export function useEditImage(img: Img, save?: Save){
   const root = document.createElement('div')
-  const style = {
-    position: 'absolute',
-    top: 0,
-    width: '100%',
-    height: '100%',
-  }
   Object.keys(style).forEach(key => root.style[key] = style[key])
   let app: App
   const close = () => {

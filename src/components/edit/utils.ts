@@ -1,6 +1,6 @@
-export function getImageOriginalSize(file: File): Promise<{
-  width: number,
-  height: number,
+export function getPrimitiveImage(file: File): Promise<{
+  image: HTMLImageElement,
+  close: () => void
 }> {
   return new Promise((resolve, reject) => {
     const image = new Image()
@@ -8,14 +8,14 @@ export function getImageOriginalSize(file: File): Promise<{
     image.style.position = 'absolute'
     image.style.left = '-10000px'
     image.style.top = '-10000px'
+
     image.onload = function () {
-      resolve({
-        width: image.width,
-        height: image.height
-      })
-      image.remove()
+      resolve({image, close})
     };
     image.onerror = reject
     document.body.appendChild(image)
+    function close() {
+      image.remove()
+    }
   })
 }

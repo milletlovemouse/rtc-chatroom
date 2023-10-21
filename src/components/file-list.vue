@@ -8,7 +8,7 @@
       >
         <img
           v-if="isImage(img.file)"
-          v-edit-image="{img, handler: updateImage, once: true}"
+          v-edit-image="{img, handler: updateImage}"
           :src="img.url"
           :title="img.file.name"
           :alt="img.file.name"
@@ -70,18 +70,14 @@ function getMenuList(img: Img) {
 }
 
 type Menu = Merge<MenuItem, {img: Img}>;
-let close = () => {}
 function edit(value: Menu) {
-  const { img } = value;
-  const index = images.value.findIndex(item => item.file === img.file);
-  close = useEditImage(img, (newImg) =>{
-    emits('updateImage', newImg, index);
-    close()
+  useEditImage(value.img, (newImg, oldImg) =>{
+    updateImage(newImg, oldImg)
   });
 }
 
 function updateImage(newImg: Img, oldImg: Img) {
-  const index = images.value.findIndex(item => item === oldImg);
+  const index = images.value.findIndex(item => item.file === oldImg.file);
   emits('updateImage', newImg, index);
 }
 
