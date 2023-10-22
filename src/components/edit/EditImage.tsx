@@ -1,4 +1,4 @@
-import { defineComponent, createApp, PropType, ref, App, onUnmounted, watch, nextTick } from "vue";
+import { defineComponent, createApp, PropType, ref, App, onUnmounted, watch, nextTick, onMounted, computed } from "vue";
 import { SaveOutlined, ScissorOutlined, CloseOutlined } from "@ant-design/icons-vue";
 import { getPrimitiveImage } from "./utils";
 import style from "./EditImage.module.scss"
@@ -8,6 +8,14 @@ import useResizeObserver from "/@/hooks/useResizeObserver";
 export type Img = {
   file: File,
   url: string
+}
+
+export type CssStyle = {
+  width?: number;
+  height?: number;
+  left?: number;
+  top?: number;
+  opacity?: number;
 }
 
 export type Save = (newImg: Img, oldImg: Img ) => void;
@@ -32,12 +40,13 @@ export const EditImage = defineComponent({
     },
     close: {
       type: Function as PropType<() => void>,
-      default: () => {}
+      required: true
     },
     save: {
       type: Function as PropType<Save>,
-      default: () => {}
-    }
+      required: true
+    },
+    from: Object as PropType<CssStyle>,
   },
   setup(props) {
     const root = ref<HTMLElement>(null)
@@ -381,6 +390,53 @@ export const EditImage = defineComponent({
       }
     }
 
+    const showToolBar = ref(!props.from)
+    const from = computed(() => {
+      if (props.from) {
+        const clientWidth = window.innerWidth
+        const clientHeight = window.innerHeight
+        const parentLeft = window.innerWidth / 20
+        const parentTop = window.innerHeight / 20
+        const parentMaxWidth = window.innerWidth - parentLeft * 2
+        const parentMaxHeight = window.innerHeight - parentTop * 2
+        const from = {...props.from as CssStyle}
+        
+        from.left = Math.min(from.left - (clientWidth - Math.min(from.width, parentMaxWidth)) / 2, from.left)
+        from.top = Math.min(from.top - (clientHeight - Math.min(from.height, parentMaxHeight)) / 2, from.top)
+        Object.keys(from).forEach(key => {
+          from[key] = from[key] + 'px'
+        })
+        from.opacity = 0.5
+        return from
+      } 
+      return {}
+    })
+    const transition = ref(from.value)
+    const close = (e: MouseEvent) => {
+      e.stopPropagation()
+      if (props.from) {
+        transition.value = from.value
+        showToolBar.value = false
+        image.value.ontransitionend = () => {
+          props.close()
+        }
+        console.log(image.value);
+      } else {
+        props.close()
+      }
+    }
+
+    onMounted(() => {
+      if (props.from) {
+        setTimeout(() => {
+          transition.value = {}
+        })
+        image.value.ontransitionend = () => {
+          showToolBar.value = true
+        }
+      }
+    })
+
     onUnmounted(() => {
       document.removeEventListener('mousedown', updateDown)
       document.removeEventListener('mouseup', updateDown)
@@ -390,10 +446,18 @@ export const EditImage = defineComponent({
     })
     return () => (
       <div ref={root} class={style.editImage}>
-        <div class="close" onClick={props.close}><CloseOutlined /></div>
+        <div class="close" onClick={close}><CloseOutlined /></div>
         <div class="mask-layer"></div>
         <div class="edit-image-container">
-          <img ref={image} class="image" src={img.value.url} alt={img.value.file.name} />
+          <img
+            ref={image}
+            style={{
+              ...transition.value
+            }}
+            class="image"
+            src={img.value.url}
+            alt={img.value.file.name}
+          />
           {/* <canvas ref={canvas} class={style.canvas}></canvas> */}
           { cutState.value
             ? <div class="cut">
@@ -406,17 +470,22 @@ export const EditImage = defineComponent({
                 <div ref={rightEl} class="right"></div>
               </div>
             : null }
-          <div class="toolbar" onMousedown={(e) => e.stopPropagation()}>
-            <ScissorOutlined title="裁剪" onClick={cut} />
-            <SaveOutlined title="保存" onClick={save} />
-          </div>
+          { showToolBar.value ?
+            <div class="toolbar" onMousedown={(e) => e.stopPropagation()}>
+              <ScissorOutlined title="裁剪" onClick={cut} />
+              <SaveOutlined title="保存" onClick={save} />
+            </div> : null }
         </div>
       </div>
     )
   }
 })
 
-export function useEditImage(img: Img, save?: Save){
+export function useEditImage(img: Img, options: {
+  save: Save,
+  from?: CssStyle
+}){
+  const { save, from } = options || {}
   const root = document.createElement('div')
   Object.keys(style).forEach(key => root.style[key] = style[key])
   let app: App
@@ -424,7 +493,7 @@ export function useEditImage(img: Img, save?: Save){
     app.unmount()
     root.remove()
   }
-  app = createApp(EditImage, { img, close, save })
+  app = createApp(EditImage, { img, close, save, from })
   app.mount(root)
   document.body.appendChild(root)
   return close

@@ -13,11 +13,21 @@ export default function editImage(app: App) {
       ImgMap.set(el, binding.value);
       el.addEventListener('click', () => {
         const { img, once, handler } = ImgMap.get(el);
-        const close = useEditImage(img, (...args) => {
-          handler(...args);
-          if (once) {
-            close();
-          }
+        const { width, height, left, top } = el.getBoundingClientRect()
+        const from = {
+          width,
+          height,
+          left,
+          top
+        }
+        const close = useEditImage(img, {
+          save: (...args) => {
+            handler(...args);
+            if (once) {
+              close();
+            }
+          },
+          from
         });
       })
     },

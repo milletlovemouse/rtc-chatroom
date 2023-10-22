@@ -8,6 +8,7 @@
       >
         <img
           v-if="isImage(img.file)"
+          ref="imgs"
           v-edit-image="{img, handler: updateImage}"
           :src="img.url"
           :title="img.file.name"
@@ -26,7 +27,7 @@
 </template>
 <script lang="ts" setup>
 import { DeleteFilled, EditFilled } from '@ant-design/icons-vue';
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { Merge } from '../utils/type';
 import { useEditImage } from './edit/EditImage';
 import { MenuItem, MenuList } from './menu/menu';
@@ -48,6 +49,8 @@ const images = computed(() => props.fileList.map(fileItem => ({
   file: fileItem.file,
   url: isImage(fileItem.file) ? URL.createObjectURL(fileItem.file) : fileItem.url
 })))
+
+const imgs = ref<HTMLImageElement[]>(null)
 
 const menuList = reactive<MenuList>([
   {
@@ -71,8 +74,19 @@ function getMenuList(img: Img) {
 
 type Menu = Merge<MenuItem, {img: Img}>;
 function edit(value: Menu) {
-  useEditImage(value.img, (newImg, oldImg) =>{
-    updateImage(newImg, oldImg)
+  const index = images.value.findIndex(item => item.file === value.img.file);
+  const { width, height, left, top } = imgs.value[index].getBoundingClientRect()
+  const from = {
+    width,
+    height,
+    left,
+    top
+  }
+  useEditImage(value.img, {
+    save: (newImg, oldImg) =>{
+      updateImage(newImg, oldImg)
+    },
+    from
   });
 }
 

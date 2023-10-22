@@ -8,7 +8,13 @@ export default function previewImage(app: App) {
       ImgMap.set(el, binding.value);
       el.addEventListener('click', () => {
         const img = ImgMap.get(el)
-        usePriviewImage(img);
+        const { width, height, left, top } = el.getBoundingClientRect()
+        usePriviewImage(img, {
+          width,
+          height,
+          left,
+          top,
+        });
       })
     },
     updated(el: Element, binding: DirectiveBinding<Img>) {

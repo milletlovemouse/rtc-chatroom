@@ -7,7 +7,7 @@ export type MenuItem = {
   /** 菜单图标 */
   icon: DefineComponent | FunctionalComponent
   /** 菜单事件 */
-  methods: (value: MenuItem) => void
+  methods: (value: MenuItem, ...args: any[]) => void
 }
 
 export type MenuList = Array<MenuItem>
