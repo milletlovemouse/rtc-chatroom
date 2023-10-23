@@ -26,7 +26,6 @@ export type Message = {
     file: File;
     chunks: string[];
   };
-  avatar: string;
 }
 
 export type FileMessageData = {

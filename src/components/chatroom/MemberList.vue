@@ -26,7 +26,7 @@
 </template>
 <script lang="ts" setup>
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
-import UserIcon from '/@/components/chat/user-icon.vue';
+import UserIcon from '/@/components/UserIcon.vue';
 import { ConnectorInfoList, StreamType } from '/@/utils/WebRTC/rtc-client';
 import { audioVisible } from "@/utils/audio/audioVisualizer";
 

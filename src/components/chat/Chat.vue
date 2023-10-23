@@ -13,8 +13,9 @@
         @keyup.enter="sendMessage"
         placeholder="请输入消息内容"
         :maxlength="maxlength"
+        :disabled="loading"
       />
-      <a-button type="primary" size="large" @click="sendMessage">Send</a-button>
+      <a-button type="primary" size="large" :loading="loading" @click="sendMessage">发送</a-button>
     </div>
   </div>
 </template>
@@ -27,8 +28,8 @@ import { base64ToFile, fileAndBlobToBase64, fileToBlob, saveFile, sliceFileAndBl
 import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { formatDate } from '/@/utils/formatDate';
 import getFileTypeImage from '/@/utils/file-type-image';
-import MessageList from '/@/components/chat/message-list.vue';
-import FileList, { Img } from '/@/components/file-list.vue';
+import MessageList from '/@/components/chat/MessageList.vue';
+import FileList, { Img } from '/@/components/FileList.vue';
 import { Message } from '/@/utils/WebRTC/rtc-client';
 
 type FileInfo = Awaited<ReturnType<typeof getFileInfo>>
@@ -40,7 +41,6 @@ type MessageItem = {
   type: 'file' | 'text';
   text?: string;
   fileInfo?: FileInfo;
-  avatar: ReturnType<typeof createAvatar>;
 }
 
 const props = defineProps<{
@@ -81,10 +81,13 @@ function updateImage(img: Img, index: number) {
   fileMessageList[index].file = img.file
 }
 
-function sendMessage() {
-  if (inputValue.value.length > maxlength.value) return
+const loading = ref(false)
+async function sendMessage() {
+  if (inputValue.value.length > maxlength.value || loading.value) return
+  loading.value = true
   sendTextMessage()
-  sendFileMessage()
+  await sendFileMessage()
+  loading.value = false
 }
 
 function sendTextMessage() {
@@ -99,7 +102,6 @@ function sendTextMessage() {
     isSelf: true,
     HHmmss,
     text: inputValue.value,
-    avatar: createAvatar(username[0])
   }
   rtc.channelSendMesage(messageItem)
   messageList.push(messageItem)
@@ -119,7 +121,6 @@ async function sendFileMessage() {
       HHmmss,
       type: 'file',
       fileInfo: await getFileInfo(fileItem.file),
-      avatar: createAvatar(username[0])
     }
     rtc.channelSendMesage(messageItem)
     messageList.push(messageItem)
@@ -158,19 +159,6 @@ async function getFileInfo(file: File) {
     chunks,
     url
   }
-}
-
-function createAvatar(text: string) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 50;
-  canvas.height = 50;
-  const cans = canvas.getContext("2d");
-  cans.font = "2em Microsoft JhengHei"; //字体
-  cans.fillStyle = "#333"; //字体填充颜色
-  cans.textAlign = "left"; //对齐方式
-  cans.textBaseline = "middle"
-  cans.fillText(text, canvas.width / 3, canvas.height / 2); //被填充的文本
-  return canvas.toDataURL("image/png")
 }
 
 function clearMessage() {

@@ -1,9 +1,7 @@
 <template lang="">
   <scroll-bar ref="scrollbar" @scroll="scroll" class="message-list">
     <div v-for="message in props.messageList" :key="message.id" :class="{'message-item': true, self: message.isSelf}">
-      <div class="message-avatar">
-        <img :src="message.avatar"/>
-      </div>
+      <a-avatar class="message-avatar" :size="50">{{ message.username[0] }}</a-avatar>
       <div class="message-main">
         <div class="message-username">{{ message.username }}</div>
         <div class="message-content">
@@ -30,7 +28,7 @@
 </template>
 <script lang="ts" setup>
 import { ref, watch, nextTick, computed, h } from 'vue';
-import MessageFile from '/@/components/chat/message-file.vue'
+import MessageFile from '/@/components/chat/MessageFile.vue'
 import ScrollBar, { ScrollEvent } from '@/components/scrollbar.vue';
 import { Icon } from '@vicons/utils'
 import { DownToBottom } from '@vicons/carbon';
@@ -91,9 +89,7 @@ function scroll(e: ScrollEvent) {
     }
     .message-avatar {
       float: left;
-      width: $width;
-      height: 50px;
-      border-radius: 50%;
+      color: #000;
       background-color: #fff;
       img {
         object-fit: cover;
@@ -109,7 +105,8 @@ function scroll(e: ScrollEvent) {
         letter-spacing: 0.05em;
       }
       .message-content {
-        width: calc($openWidth - ($width + $gap + $padding) * 2 - 5px);
+        float: left;
+        max-width: calc($openWidth - ($width + $gap + $padding) * 2 - 5px);
         padding: 10px;
         background: #444;
         border-radius: 8px;

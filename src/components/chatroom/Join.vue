@@ -1,8 +1,8 @@
 <template lang="">
   <div class="chat-join">
     <div class="video-box">
-      <video ref="video" v-if="props.stream" :srcObject="props.stream" muted></video>
-      <UserIcon style="border: none" v-else/>
+      <video ref="video" v-if="hasVideo" :srcObject="props.stream" muted></video>
+      <UserIcon v-else/>
     </div>
     <form ref="form" class="form">
       <div class="input-box">
@@ -21,7 +21,7 @@
 </template>
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, reactive, Ref, ref, watch } from 'vue';
-import UserIcon from '/@/components/chat/user-icon.vue';
+import UserIcon from '/@/components/UserIcon.vue';
 
 const props = defineProps<{
   stream: MediaStream | null | undefined;
@@ -34,6 +34,10 @@ const form = ref<HTMLFormElement>(null)
 const userInfo = reactive({
   username: '',
   roomname: '',
+})
+
+const hasVideo = computed(() => {
+  return !!(props.stream && props.stream.getVideoTracks().length)
 })
 
 watch(props, async ({ stream }) => {
@@ -82,6 +86,11 @@ const aspectRatio = computed<number>(() => {
       max-height: 500px;
       border-radius: 8px;
       object-fit: cover;
+    }
+    .user-icon {
+      border: none;
+      max-width: 550px;
+      max-height: 500px;
     }
   }
   .form {
