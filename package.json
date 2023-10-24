@@ -12,6 +12,7 @@
     "@ant-design/icons-vue": "^6.1.0",
     "ant-design-vue": "^4.0.2",
     "mitt": "^3.0.1",
+    "pinia": "^2.1.7",
     "sass": "^1.66.1",
     "sass-loader": "^13.3.2",
     "socket.io-client": "^4.7.2",

@@ -4,8 +4,17 @@ import App from './App.vue';
 import 'ant-design-vue/dist/reset.css';
 import './style.css';
 
-import defineDirective from '/@/utils/directive';
+import setupDirective from '/@/utils/directive';
+import { setupStore } from './store';
 
-const app = createApp(App);
+function bootstrap() {
+  const app = createApp(App);
 
-app.use(defineDirective).mount('#app');
+  setupStore(app)
+
+  setupDirective(app);
+
+  app.mount('#app');
+}
+
+bootstrap();

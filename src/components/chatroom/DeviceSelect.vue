@@ -44,13 +44,15 @@
         {{ props.modelValue.dispalyEnabled ? '取消共享' : '共享屏幕' }}
       </a-button>
       &nbsp;
-      <a-button
-        shape="circle"
-        type="primary"
-        :icon="h(Icon, {class: 'anticon'}, () => h(ChatboxEllipsesOutline))"
-        @click="chatBoxToggle"
-        >
-      </a-button>
+      <a-badge :count="store.count">
+        <a-button
+          shape="circle"
+          type="primary"
+          :icon="h(Icon, {class: 'anticon'}, () => h(ChatboxEllipsesOutline))"
+          @click="chatBoxToggle"
+          >
+        </a-button>
+      </a-badge>
       &nbsp;
       <a-button 
         @click="exit"
@@ -66,7 +68,6 @@
 <script lang="ts" setup>
 import { reactive, ref, h, watch, Ref, computed, inject } from 'vue';
 import { AudioFilled, CameraFilled, AudioOutlined, AudioMutedOutlined, ShrinkOutlined } from '@ant-design/icons-vue';
-import { Icon } from '@vicons/utils'
 import { Video48Regular, VideoOff48Regular, Video48Filled } from '@vicons/fluent';
 import { DeviceDesktop, DeviceDesktopOff } from '@vicons/tabler'
 import { ExitToAppFilled, VideoSettingsOutlined } from '@vicons/material'
@@ -74,6 +75,8 @@ import { ChatboxEllipsesOutline } from '@vicons/ionicons5'
 import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { DeviceInfo } from '/@/utils/MediaDevices/mediaDevices';
 import { onError } from '/@/utils/WebRTC/message';
+import { useChatStore } from '@/store/modules/chat';
+import { Icon } from '@vicons/utils'
 
 type Resolution = 2160 | 1440 | 1080 | 720 | 480 | 360 | 240 | 144 | 0
 export interface Props {
@@ -100,6 +103,8 @@ const emit = defineEmits<{
   chatBoxToggle: [value: boolean],
   exit: [],
 }>()
+
+const store = useChatStore()
 
 const rtc = inject<RTCClient>('rtc')
 
@@ -162,6 +167,9 @@ const dispalyEnabledToggle = () => {
 let open = false
 const chatBoxToggle = () => {
   open = !open
+  if (open) {
+    store.count = 0
+  }
   emit('chatBoxToggle', open)
 }
 

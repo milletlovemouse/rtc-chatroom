@@ -24,13 +24,14 @@ import { computed, inject, reactive, ref } from 'vue';
 import { Icon } from '@vicons/utils'
 import { ImageOutline } from "@vicons/ionicons5"
 import { DriveFileMoveRound } from '@vicons/material'
-import { base64ToFile, fileAndBlobToBase64, fileToBlob, saveFile, sliceFileAndBlobToArrayBuffer, sliceFileAndBlobToBase64, sliceFileOrBlob } from '/@/utils/fileUtils';
+import { sliceFileAndBlobToBase64 } from '/@/utils/fileUtils';
 import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { formatDate } from '/@/utils/formatDate';
 import getFileTypeImage from '/@/utils/file-type-image';
 import MessageList from '/@/components/chat/MessageList.vue';
 import FileList, { Img } from '/@/components/FileList.vue';
 import { Message } from '/@/utils/WebRTC/rtc-client';
+import { useChatStore } from '@/store/modules/chat';
 
 type FileInfo = Awaited<ReturnType<typeof getFileInfo>>
 type MessageItem = {
@@ -47,11 +48,16 @@ const props = defineProps<{
   open: boolean;
 }>()
 
+const store = useChatStore()
+
 const rtc = inject<RTCClient>('rtc')
 
 rtc.on('message', async (message: MessageItem) =>{
   message.isSelf = false
   messageList.push(message)
+  if (!props.open) {
+    store.count++
+  }
 })
 
 const inputValue = ref('')

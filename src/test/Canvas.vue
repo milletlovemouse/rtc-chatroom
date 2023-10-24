@@ -66,7 +66,9 @@ const selectFileOption = {
 type Menu = Merge<MenuItem, {img: Img}>;
 function edit(value: Menu) {
   const { img } = value;
-  useEditImage(img, updateImage);
+  useEditImage(img, {
+    save: updateImage
+  });
 }
 
 function updateImage(newImg: Img, oldImg: Img) {

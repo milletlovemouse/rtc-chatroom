@@ -4,7 +4,7 @@ import menu from "./vMenu";
 import editImage from "./vEditImage";
 import previewImage from "./vPreview";
 
-const defineDirective = (app: App) => {
+const setupDirective = (app: App) => {
   // 文件选择指令
   selectFile(app)
   // 右键菜单
@@ -15,8 +15,4 @@ const defineDirective = (app: App) => {
   previewImage(app)
 };
 
-export default {
-  install(app: App) {
-    defineDirective(app)
-  }
-};
+export default setupDirective
