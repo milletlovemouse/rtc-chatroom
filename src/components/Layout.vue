@@ -61,7 +61,7 @@ const routerList = shallowReactive([
 const component = shallowRef<Component>(null)
 
 async function to(comp: Component) {
-  component.value = show.value ? comp : MediaDevices
+  component.value = show.value ? comp : ChatRoom
 }
 
 to(routerList[0].component)
