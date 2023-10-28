@@ -17,14 +17,18 @@
       />
       <a-button type="primary" size="large" :loading="loading" @click="sendMessage">发送</a-button>
     </div>
+    <div v-if="loading" class="loading">
+      <LoadingOutlined />
+    </div>
   </div>
 </template>
 <script lang="ts" setup>
 import { computed, inject, reactive, ref } from 'vue';
 import { Icon } from '@vicons/utils'
 import { ImageOutline } from "@vicons/ionicons5"
+import { LoadingOutlined } from '@ant-design/icons-vue'
 import { DriveFileMoveRound } from '@vicons/material'
-import { sliceFileAndBlobToBase64 } from '/@/utils/fileUtils';
+import { fileAndBlobToBase64, sliceFileAndBlobToBase64, sliceFileOrBlob } from '/@/utils/fileUtils';
 import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { formatDate } from '/@/utils/formatDate';
 import getFileTypeImage from '/@/utils/file-type-image';
@@ -32,6 +36,7 @@ import MessageList from '/@/components/chat/MessageList.vue';
 import FileList, { Img } from '/@/components/FileList.vue';
 import { Message } from '/@/utils/WebRTC/rtc-client';
 import { useChatStore } from '@/store/modules/chat';
+import useWebWorkerFn from '/@/hooks/useWebWorkerFn';
 
 type FileInfo = Awaited<ReturnType<typeof getFileInfo>>
 type MessageItem = {
@@ -114,24 +119,32 @@ function sendTextMessage() {
   inputValue.value = ''
 }
 
-async function sendFileMessage() {
+function sendFileMessage() {
+  const promiseAll = []
   while(fileMessageList.length) {
     const fileItem = fileMessageList.shift()
     const { username } = rtc.userInfo
     const date = new Date
     const { HHmmss } = formatDate(date)
-    const messageItem: MessageItem = {
-      id: crypto.randomUUID(),
-      isSelf: true,
-      username,
-      HHmmss,
-      type: 'file',
-      fileInfo: await getFileInfo(fileItem.file),
-    }
-    rtc.channelSendMesage(messageItem)
-    messageList.push(messageItem)
-    delete messageItem.fileInfo.chunks
+    promiseAll.push(
+      getFileInfo(fileItem.file).then((fileInfo) => {
+        const messageItem: MessageItem = {
+          id: crypto.randomUUID(),
+          isSelf: true,
+          username,
+          HHmmss,
+          type: 'file',
+          fileInfo
+        }
+        rtc.channelSendMesage(messageItem)
+        messageList.push(messageItem)
+        delete messageItem.fileInfo.chunks
+      }).catch((error) => {
+        console.error(error);
+      })
+    )
   }
+  return Promise.all(promiseAll)
 }
 
 async function uploadFile(files: File[], err: Error, inputFiles: File[]) {
@@ -154,16 +167,28 @@ async function getFileInfo(file: File) {
       ? (size / kb).toFixed(2) + 'KB' 
       : (size / mb).toFixed(2) + 'MB'
     : (size / gb).toFixed(2) + 'GB';
-  let url = getFileTypeImage(name)
-  let chunks = await sliceFileAndBlobToBase64(file, 180 * 1024)
-  return {
-    name,
-    size: formatSize,
-    type,
-    file,
-    FQ: chunks.length,
-    chunks,
-    url
+  const url = getFileTypeImage(name)
+
+  const { workerFn } = useWebWorkerFn(sliceFileAndBlobToBase64, {
+    fnDependencies: {
+      sliceFileOrBlob,
+      fileAndBlobToBase64
+    }
+  })
+  
+  try {
+    const chunks = await workerFn(file, 180 * 1024)
+    return {
+      name,
+      size: formatSize,
+      type,
+      file,
+      FQ: chunks.length,
+      chunks,
+      url
+    }
+  } catch (error) {
+    return Promise.reject(error)
   }
 }
 
@@ -223,6 +248,17 @@ defineExpose({
       color: #fff;
       caret-color: #fff;
     }
+  }
+  .loading {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 3em;
+    color: #fff;
   }
 }
 </style>

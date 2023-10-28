@@ -22,7 +22,7 @@
         <component :is='component'></component>
       </a-layout-content>
       <a-layout-footer v-if="show" style="text-align: center">
-        Tool-library ©2023
+        rtc-chatroom ©2023
       </a-layout-footer>
     </a-layout>
   </a-layout>

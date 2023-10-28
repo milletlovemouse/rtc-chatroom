@@ -655,8 +655,8 @@ export default class RTCClient extends SocketClient {
     const chunksMerge = (id: string) => {
       const chunks = connectorInfo.chunks[id]
       const message = connectorInfo.messageList[id]
-      const { FQ, name } = message.fileInfo
-      if (chunks && chunks.length === FQ) {
+      if (message && chunks && chunks.length === message.fileInfo.FQ) {
+        const { name } = message.fileInfo
         delete connectorInfo.messageList[id]
         delete connectorInfo.chunks[id]
         const flieChunks = chunks.sort((a, b) => a[1] - b[1]).map(([chunk]) => chunk)
