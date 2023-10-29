@@ -5,6 +5,11 @@
   border-radius: 8px;
   background: #111;
   font-size: 0.95em;
+  overflow-y: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { 
+    width: 0 !important;
+  }
   :global {
     .menu-child {
       display: flex;

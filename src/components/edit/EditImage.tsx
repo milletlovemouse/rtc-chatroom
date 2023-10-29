@@ -1,9 +1,12 @@
 import { defineComponent, createApp, PropType, ref, App, onUnmounted, watch, nextTick, onMounted, computed } from "vue";
 import { SaveOutlined, ScissorOutlined, CloseOutlined } from "@ant-design/icons-vue";
+import { Edit32Regular } from "@vicons/fluent";
+import { PenFountain } from "@vicons/carbon";
 import { getPrimitiveImage } from "./utils";
 import style from "./EditImage.module.scss"
 import { base64ToFile } from "/@/utils/fileUtils";
 import useResizeObserver from "/@/hooks/useResizeObserver";
+import { colorToHalfTransparent } from "/@/utils/colorUtils";
 
 export type Img = {
   file: File,
@@ -51,7 +54,6 @@ export const EditImage = defineComponent({
   setup(props) {
     const root = ref<HTMLElement>(null)
     const image = ref<HTMLImageElement>(null)
-    // const canvas = ref<HTMLCanvasElement>(null)
     const region = ref<HTMLElement>(null)
     const topEl = ref<HTMLElement>(null)
     const bottomEl = ref<HTMLElement>(null)
@@ -64,7 +66,7 @@ export const EditImage = defineComponent({
       width: '100%',
       height: '100%',
     }
-    const berder = 3
+    const berder = 1
     let down = false // 记录鼠标按下
     let position = 0 // 记录鼠标落点
     let cutInfo = ref({...cutStyle})
@@ -230,14 +232,6 @@ export const EditImage = defineComponent({
       rightEl.value.style.width = parentWidth - width - left + 'px'
       rightEl.value.style.height = height + 'px'
       bottomEl.value.style.height = parentHeight - height - top + 'px'
-      // 测试
-      // const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
-      // const widthScale = originalSize.width / imgWidth
-      // const heightScale = originalSize.height / imgHeight
-      // canvas.value.width = width
-      // canvas.value.height = height
-      // const ctx = canvas.value.getContext('2d')
-      // ctx.drawImage(image.value, left * widthScale, top * heightScale, width * widthScale, height * heightScale, 0, 0, width, height)
     }
 
     let downInfo: {
@@ -327,10 +321,77 @@ export const EditImage = defineComponent({
     }
     observerImage()
 
+    type LineInfo = {
+      color: string;
+      lineWidth: number;
+      pointList: Array<[number, number]>
+    }
+    const canvasInfo = ref<{
+      pointerEvents: 'none' | 'auto';
+      pencil?: {
+        list: Array<LineInfo>
+      }
+    }>({
+      pointerEvents: 'auto',
+    })
+    const lineColor = ref<string>('#FF0000')
+    const lineWidth = ref<number>(2)
+    const resetCanvasInfo = () => {
+      const canvasInfoListKey = ['pencil']
+      canvasInfoListKey.forEach(key => delete canvasInfo.value[key])
+    }
+    function pencilMouse(e: MouseEvent) {
+      const list = canvasInfo.value.pencil?.list || []
+      const { offsetX, offsetY } = e
+      switch(e.type) {
+        case 'mousedown':
+          list.push({
+            color: lineColor.value,
+            lineWidth: lineWidth.value,
+            pointList: [[offsetX, offsetY]]
+          })
+          canvasInfo.value.pencil = { list }
+          image.value.addEventListener('mousemove', pencilMouse)
+          document.addEventListener('mouseup', pencilMouse)
+          break
+        case 'mousemove':
+        case 'mouseup':
+          const lineInfo = list.at(-1)
+          if (penState.value === 'markerpen') {
+            lineInfo.pointList[1] = [offsetX, offsetY]
+          } else {
+            lineInfo.pointList.push([offsetX, offsetY])
+          }
+          
+          if (e.type === 'mouseup') {
+            image.value.removeEventListener('mousemove', pencilMouse)
+            document.removeEventListener('mouseup', pencilMouse)
+          }
+          break
+        default: break
+      }
+    }
+
+    type PenState = 'pencil' | 'markerpen'
+    const penState = ref<PenState>(null)
+    const pencil = (e: Event, options: {
+      lineColor: string,
+      lineWidth: number,
+      state: PenState
+    }) => {
+      e.stopPropagation()
+      lineWidth.value = options.lineWidth
+      lineColor.value = options.lineColor
+      penState.value = options.state
+      cutState.value = false
+      reset()
+    }
+
     const cutState = ref(false) // 记录是否开始裁剪
     const cut = (e: Event) => {
       e.stopPropagation()
       cutState.value = !cutState.value
+      penState.value = null
       reset()
     }
 
@@ -338,22 +399,48 @@ export const EditImage = defineComponent({
     watch(() => props.img, () => {
       img.value = props.img
     }, { deep: true })
+
     const save = async (e: Event) => {
-      if (!region.value) return
       e.stopPropagation()
+      const canvasInfoListKey = ['pencil']
+      if (!region.value && !canvasInfoListKey.find(key => !!canvasInfo.value[key])) return
       const canvas = document.createElement('canvas')
-      const { width, height } = region.value.getBoundingClientRect()
       const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
       const { image: primitiveImage, close } = await getPrimitiveImage(img.value.file)
       const { width: primitiveW, height: primitiveH } = primitiveImage
-      const left = Number(cutInfo.value.left.replace('px', '')) * primitiveW / imgWidth
-      const top = Number(cutInfo.value.top.replace('px', '')) * primitiveH / imgHeight
-      const canvasWidth = width * primitiveW / imgWidth
-      const canvasHeight = height * primitiveH/ imgHeight
-      canvas.width = canvasWidth
-      canvas.height = canvasHeight
+      const scaleInfo = {
+        wScale: primitiveW / imgWidth,
+        hScale: primitiveH / imgHeight
+      }
       const ctx = canvas.getContext('2d')
-      ctx.drawImage(primitiveImage, left, top, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      // 裁剪
+      if (region.value) {
+        const { width, height } = region.value.getBoundingClientRect()
+        const left = Number(cutInfo.value.left.replace('px', '')) * scaleInfo.wScale
+        const top = Number(cutInfo.value.top.replace('px', '')) * scaleInfo.hScale
+        const canvasWidth = width * scaleInfo.wScale
+        const canvasHeight = height * scaleInfo.hScale
+        canvas.width = canvasWidth
+        canvas.height = canvasHeight
+        ctx.drawImage(primitiveImage, left, top, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      } else {
+        const canvasWidth = imgWidth * scaleInfo.wScale
+        const canvasHeight = imgHeight * scaleInfo.hScale
+        canvas.width = canvasWidth
+        canvas.height = canvasHeight
+        ctx.drawImage(primitiveImage, 0, 0, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      }
+
+      canvasInfoListKey.forEach(key => {
+        const data = canvasInfo.value[key]
+        if (!data) return
+        switch (key) {
+          case 'pencil':
+            data.list.forEach((list: LineInfo) => setCanvas(canvas, list, scaleInfo))
+          default: break
+        }
+      })
+
       const dataURL = canvas.toDataURL(img.value.file.type)
       const newImg = {
         url: dataURL,
@@ -362,10 +449,14 @@ export const EditImage = defineComponent({
       props.save(newImg, img.value)
       img.value = newImg
       cutState.value = false
+      penState.value = null
+      resetCanvasInfo()
       reset()
       close()
     }
+
     const reset = () => {
+      // 重置裁剪
       if (!cutState.value) {
         cutInfo.value = {...cutStyle}
         document.removeEventListener('mousedown', updateDown)
@@ -377,11 +468,21 @@ export const EditImage = defineComponent({
         document.addEventListener('mouseup', updateDown)
         document.addEventListener('mousemove', updateCursor)
       }
+      // 重置画笔
+      if (penState.value) {
+        canvasInfo.value.pointerEvents = 'none'
+        image.value.style.cursor = 'crosshair'
+        image.value.addEventListener('mousedown', pencilMouse)
+      } else {
+        image.value.style.cursor = 'auto'
+        image.value.removeEventListener('mousedown', pencilMouse)
+      }
     }
+
     const updateMoveDown = (e: MouseEvent) => {
-      e.stopPropagation()
       // 按下还是抬起
       if (e.type === 'mousedown') {
+        e.stopPropagation()
         const { x, y } = e
         downInfo = { x, y }
         document.addEventListener('mousemove', updateRegion)
@@ -415,12 +516,12 @@ export const EditImage = defineComponent({
     const close = (e: MouseEvent) => {
       e.stopPropagation()
       if (props.from) {
+        resetCanvasInfo()
         transition.value = from.value
         showToolBar.value = false
         image.value.ontransitionend = () => {
           props.close()
         }
-        console.log(image.value);
       } else {
         props.close()
       }
@@ -444,6 +545,42 @@ export const EditImage = defineComponent({
       document.removeEventListener('mousemove', updateCutInfo)
       document.removeEventListener('mousemove', updateRegion)
     })
+
+    function setCanvas(canvas: any, lineInfo: LineInfo, scaleInfo?: {
+      wScale: number,
+      hScale: number
+    }) {
+      if (!canvas) return
+      const { wScale = 1, hScale = 1 } = scaleInfo || {}
+      const [minWidth, minHeight, maxWidth, maxHeight] = lineInfo.pointList.reduce((a, b) => {
+        return [
+          Math.min(a[0], b[0]) * wScale,
+          Math.min(a[1], b[1]) * hScale,
+          Math.max(a[2], b[0]) * wScale,
+          Math.max(a[3], b[1]) * hScale
+        ]
+      }, [Infinity, Infinity, 0, 0])
+      if (!scaleInfo) {
+        canvas.width = maxWidth - minWidth + lineInfo.lineWidth
+        canvas.height = maxHeight - minHeight + lineInfo.lineWidth
+        canvas.style.left = minWidth - lineInfo.lineWidth / 2 + 'px'
+        canvas.style.top = minHeight - lineInfo.lineWidth / 2 + 'px'
+      }
+      const ctx = canvas.getContext('2d')
+      ctx.strokeStyle = lineInfo.color
+      ctx.lineWidth = lineInfo.lineWidth
+      ctx.lineCap = 'round'; // 线段端点为圆角
+      ctx.lineJoin = 'round'; // 线段交汇处为圆角
+      ctx.beginPath()
+      lineInfo.pointList.forEach((point) => {
+        if (!scaleInfo) {
+          ctx.lineTo(point[0] - minWidth + lineInfo.lineWidth / 2, point[1] - minHeight + lineInfo.lineWidth / 2)
+        } else {
+          ctx.lineTo(point[0] * wScale, point[1] * hScale)
+        }
+      })
+      ctx.stroke()
+    }
     return () => (
       <div ref={root} class={style.editImage}>
         <div class="close" onClick={close}><CloseOutlined /></div>
@@ -458,11 +595,24 @@ export const EditImage = defineComponent({
             src={img.value.url}
             alt={img.value.file.name}
           />
-          {/* <canvas ref={canvas} class={style.canvas}></canvas> */}
+          {
+            (canvasInfo.value.pencil?.list || []).map((lineInfo) => {
+              return <canvas class="canvas" style={{pointerEvents: canvasInfo.value.pointerEvents}} ref={(e) => setCanvas(e, lineInfo)}></canvas>
+            })
+          }
           { cutState.value
             ? <div class="cut">
-                <div ref={region} style={cutInfo.value} class="region">
-                  <div onMousedown={updateMoveDown} onMouseup={updateMoveDown} class="fill"></div>
+                <div 
+                  ref={region}
+                  style={cutInfo.value}
+                  class="region"
+                  onMousedown={updateMoveDown}
+                  onMouseup={updateMoveDown}
+                >
+                  <div class="left-top"></div>
+                  <div class="left-bottom"></div>
+                  <div class="right-top"></div>
+                  <div class="right-bottom"></div>
                 </div>
                 <div ref={topEl} class="top"></div>
                 <div ref={bottomEl} class="bottom"></div>
@@ -472,6 +622,20 @@ export const EditImage = defineComponent({
             : null }
           { showToolBar.value ?
             <div class="toolbar" onMousedown={(e) => e.stopPropagation()}>
+              <span class='anticon xicon' title="画笔" tabindex="-1" onClick={(e) => pencil(e, {
+                lineWidth: 2,
+                lineColor: '#FF0000',
+                state: 'pencil'
+              })}>
+                <Edit32Regular></Edit32Regular>
+              </span>
+              <span class='anticon xicon' title="记号笔" tabindex="-1" onClick={(e) => pencil(e, {
+                lineWidth: 15,
+                lineColor: colorToHalfTransparent('#FF0000', 0.4),
+                state: 'markerpen'
+              })}>
+                <PenFountain></PenFountain>
+              </span>
               <ScissorOutlined title="裁剪" onClick={cut} />
               <SaveOutlined title="保存" onClick={save} />
             </div> : null }

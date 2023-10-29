@@ -42,7 +42,7 @@ const hasVideo = computed(() => {
 
 watch(props, async ({ stream }) => {
   await nextTick()
-  if (stream) {
+  if (stream && video.value) {
     video.value.onloadedmetadata = () => {
       video.value.play();
     };

@@ -103,7 +103,7 @@ const toggle = () => {
   types[1] = temp
 }
 </script>
-<style lang="scss">
+<style lang="scss" scoped>
   .canvas {
     $padding: 5px;
     $height: calc(var(--main-height) - 2 * $padding);
