@@ -1,4 +1,4 @@
-import { useError, useSuccess } from "../message"
+import { useError, useSuccess, useWarning } from "../message"
 
 const Message = {
   USER_PERMISSION_DENIED: "用户未允许浏览器访问摄像头和麦克风",
@@ -22,4 +22,5 @@ export const MessageKeyMap: MessageKeyMap = {
 
 const format = (description: string) => description.split(' ').join('_').toUpperCase()
 export const onError = useError(Message, format)
+export const onWarning = useWarning(Message, format)
 export const onSuccess = useSuccess(Message, format)

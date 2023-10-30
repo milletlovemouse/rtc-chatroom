@@ -104,12 +104,22 @@
       .toolbar {
         position: absolute;
         right: 0;
-        display: flex;
-        justify-content: end;
-        gap: 0 5px;
         margin-top: 5px;
-        padding: 10px;
         background: #f1f1f1;
+        .anticon {
+          padding: 10px;
+          &.active {
+            background: #3a7ceb;
+            color: #fff;
+          }
+          &:not(.active):hover {
+            background: #dadada;
+          }
+        }
+        .xicon {
+          width: auto;
+          height: auto;
+        }
       }
     }
     .close {

@@ -19,4 +19,5 @@ const useMessage = (callback: Function) => {
 }
 
 export const useError = useMessage(message.error)
+export const useWarning = useMessage(message.warning)
 export const useSuccess = useMessage(message.success)
