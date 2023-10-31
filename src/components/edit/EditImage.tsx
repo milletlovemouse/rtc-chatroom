@@ -3,7 +3,7 @@ import { SaveOutlined, ScissorOutlined, CloseOutlined, RiseOutlined, ExpandOutli
 import { AutoAwesomeMosaicSharp } from "@vicons/material";
 import { Edit32Regular } from "@vicons/fluent";
 import { PenFountain } from "@vicons/carbon";
-import draw, { getPrimitiveImage } from "./utils";
+import draw, { getOriginalImageRect } from "./utils";
 import style from "./EditImage.module.scss"
 import { base64ToFile } from "/@/utils/fileUtils";
 import useResizeObserver from "/@/hooks/useResizeObserver";
@@ -508,6 +508,11 @@ export const EditImage = defineComponent({
       img.value = props.img
     }, { deep: true })
 
+    const originalImageRect = ref<DOMRect>(null)
+    watch(() => img.value, async () => {
+      originalImageRect.value = await getOriginalImageRect(img.value.file)
+    }, { deep: true, immediate: true })
+
     const save = async (e: Event) => {
       e.stopPropagation()
       if (!canvasInfo.value.graphList && !region.value) {
@@ -516,8 +521,7 @@ export const EditImage = defineComponent({
       }
       let canvas = document.createElement('canvas')
       const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
-      const { image: primitiveImage, close } = await getPrimitiveImage(img.value.file)
-      const { width: primitiveW, height: primitiveH } = primitiveImage
+      const { width: primitiveW, height: primitiveH } = originalImageRect.value
       const scaleInfo = {
         wScale: primitiveW / imgWidth,
         hScale: primitiveH / imgHeight
@@ -527,10 +531,10 @@ export const EditImage = defineComponent({
       const canvasHeight = imgHeight * scaleInfo.hScale
       canvas.width = canvasWidth
       canvas.height = canvasHeight
-      ctx.drawImage(primitiveImage, 0, 0, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      ctx.drawImage(image.value, 0, 0, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
 
       if (canvasInfo.value.graphList)
-        canvasInfo.value.graphList.forEach((list: LineInfo) => setCanvas(canvas, list, scaleInfo))
+        canvasInfo.value.graphList.forEach((list: LineInfo) => setCanvas(canvas, list, {...scaleInfo, isSave: true}))
 
       // 裁剪
       if (region.value) {
@@ -559,7 +563,6 @@ export const EditImage = defineComponent({
       graphState.value = null
       resetCanvasInfo()
       reset()
-      close()
       onSuccess('保存成功！')
     }
 
@@ -668,7 +671,8 @@ export const EditImage = defineComponent({
      */
     function setCanvas(canvas: HTMLCanvasElement, lineInfo: LineInfo & {key?: string}, scaleInfo?: {
       wScale: number,
-      hScale: number
+      hScale: number,
+      isSave?: boolean
     }) {
       if (!canvas) return
       const key = lineInfo.key
@@ -693,6 +697,14 @@ export const EditImage = defineComponent({
       if (lineInfo.type === 'rect') {
         draw.drawRect(canvas, option)
       } else if (lineInfo.type === 'mosaic') {
+        if (!scaleInfo) {
+          const { width: imgWidth, height: imgHeight } = image.value.getBoundingClientRect()
+          const { width: primitiveW, height: primitiveH } = originalImageRect.value
+          option.scaleInfo = {
+            wScale: primitiveW / imgWidth,
+            hScale: primitiveH / imgHeight
+          }
+        }
         draw.drawMosaic(canvas, {
           ...option,
           img: image.value

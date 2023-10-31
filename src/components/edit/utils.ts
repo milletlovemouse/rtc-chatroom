@@ -1,9 +1,6 @@
 import { Merge } from '@/utils/type'
 
-export function getPrimitiveImage(file: File): Promise<{
-  image: HTMLImageElement,
-  close: () => void
-}> {
+export function getOriginalImageRect(file: File): Promise<DOMRect> {
   return new Promise((resolve, reject) => {
     const image = new Image()
     image.src = URL.createObjectURL(file)
@@ -11,14 +8,15 @@ export function getPrimitiveImage(file: File): Promise<{
     image.style.left = '-10000px'
     image.style.top = '-10000px'
 
-    image.onload = function () {
-      resolve({image, close})
+    image.onload = () => {
+      resolve(image.getBoundingClientRect())
+      image.remove()
     };
-    image.onerror = reject
-    document.body.appendChild(image)
-    function close() {
+    image.onerror = () => {
+      reject()
       image.remove()
     }
+    document.body.appendChild(image)
   })
 }
 
@@ -28,15 +26,16 @@ type Options = {
   pointList: number[][];
   scaleInfo?: {
     wScale: number,
-    hScale: number
+    hScale: number,
+    isSave?: boolean
   }
 }
 
 export function drawLine(canvas: HTMLCanvasElement, options: Options) {
-  const { wScale, hScale } = options.scaleInfo || {}
-  const { lineWidth, lineColor, pointList, scaleInfo } = options
+  const { wScale, hScale, isSave } = options.scaleInfo || {}
+  const { lineWidth, lineColor, pointList } = options
   const [minWidth, minHeight, maxWidth, maxHeight] = getRectInfo(pointList)
-  if (!scaleInfo) {
+  if (!isSave) {
     setCanvasSize(canvas, {minWidth, minHeight, maxWidth, maxHeight, lineWidth})
   }
   const ctx = canvas.getContext('2d')
@@ -45,21 +44,24 @@ export function drawLine(canvas: HTMLCanvasElement, options: Options) {
   
   ctx.lineCap = 'round'; // 线段端点为圆角
   ctx.lineJoin = 'round'; // 线段交汇处为圆角
-  pointList.forEach((point) => {
-    if (!scaleInfo) {
-      ctx.lineTo(point[0] - minWidth + lineWidth / 2, point[1] - minHeight + lineWidth / 2)
-    } else {
-      ctx.lineTo(point[0] * wScale, point[1] * hScale)
-    }
-  })
+
+  if (isSave) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(wScale, hScale)
+    pointList.forEach((point) => ctx.lineTo(point[0], point[1]))
+  } else {
+    pointList.forEach((point) => ctx.lineTo(point[0] - minWidth + lineWidth / 2, point[1] - minHeight + lineWidth / 2))
+  }
+  
   ctx.stroke()
+  ctx.save()
 }
 
 export function drawRect(canvas: HTMLCanvasElement, options: Options) {
-  const { wScale, hScale } = options.scaleInfo || {}
+  const { wScale, hScale, isSave } = options.scaleInfo || {}
   const { lineWidth, lineColor, pointList, scaleInfo } = options
   const [minWidth, minHeight, maxWidth, maxHeight] = getRectInfo(pointList)
-  if (!scaleInfo) {
+  if (!isSave) {
     setCanvasSize(canvas, {minWidth, minHeight, maxWidth, maxHeight, lineWidth})
   }
 
@@ -67,18 +69,17 @@ export function drawRect(canvas: HTMLCanvasElement, options: Options) {
   setCanvasCtxStyle(ctx, { lineWidth, lineColor })
   ctx.beginPath()
   
-  if (!scaleInfo) {
-    ctx.strokeRect(lineWidth / 2, lineWidth / 2, maxWidth - minWidth, maxHeight - minHeight);
+  if (isSave) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(wScale, hScale)
+    ctx.strokeRect(minWidth, minHeight, maxWidth - minWidth, maxHeight - minHeight);
   } else {
-    ctx.strokeRect(minWidth * wScale, minHeight * hScale, (maxWidth - minWidth) * wScale, (maxHeight - minHeight) * hScale);
+    ctx.strokeRect(lineWidth / 2, lineWidth / 2, maxWidth - minWidth, maxHeight - minHeight);
   }
+  ctx.save()
 }
 
-export function renderMosaic(ctx: CanvasRenderingContext2D, imgData: ImageData, options?: {
-  left: number,
-  top: number,
-}) {
-  const { left = 0, top = 0 } = options || {}
+export function renderMosaic(ctx: CanvasRenderingContext2D, imgData: ImageData) {
   const { data, width, height } = imgData
   const block = 4 * 5
   for (let i = 0; i < width; i += block) {
@@ -86,42 +87,53 @@ export function renderMosaic(ctx: CanvasRenderingContext2D, imgData: ImageData, 
       const index = (i + j * width) * 4
       const [r, g, b, a] = [data[index], data[index + 1], data[index + 2], data[index + 3]]
       ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`
-      ctx.fillRect(i + left, j + top, block, block)
+      ctx.fillRect(i, j, block, block)
     }
   }
 }
 
 export function drawMosaic(canvas: HTMLCanvasElement, options: Merge<Options, {img: HTMLImageElement}>) {
-  const { wScale = 1, hScale = 1 } = options.scaleInfo || {}
-  const { lineWidth, pointList, scaleInfo, img } = options
-  const [minWidth, minHeight, maxWidth, maxHeight] = getRectInfo(pointList)
-  let canvasRect: ReturnType<typeof setCanvasSize>
-  if (!scaleInfo) {
-    canvasRect = setCanvasSize(canvas, {minWidth, minHeight, maxWidth, maxHeight, lineWidth})
+  const { wScale = 1, hScale = 1, isSave } = options.scaleInfo || {}
+  const { pointList, img } = options
+  let [minWidth, minHeight, maxWidth, maxHeight] = getRectInfo(pointList)
+
+  if (!isSave) {
+    canvas.width = maxWidth - minWidth
+    canvas.height = maxHeight - minHeight
+    canvas.style.left = minWidth + 'px'
+    canvas.style.top = minHeight + 'px'
   }
+  
+  minWidth *= wScale
+  minHeight *= hScale
+  maxWidth *= wScale
+  maxHeight *= hScale
 
   const ctx = canvas.getContext('2d')
   const { width, height } = img.getBoundingClientRect()
   const imgCanvas = document.createElement('canvas')
-  imgCanvas.width = width
-  imgCanvas.height = height
-  const imgCtx = imgCanvas.getContext('2d')
-  imgCtx.drawImage(img, 0, 0, width, height)
+  imgCanvas.width = width * wScale
+  imgCanvas.height = height * hScale
   
-  if (!scaleInfo) {
-    const { left, top, width, height } = canvasRect
-    try {
-      const imgData = imgCtx.getImageData(left, top, width, height)
-      renderMosaic(ctx, imgData)
-    } catch (error) {}
-  } else {
-    const imgData = imgCtx.getImageData(minWidth * wScale, minHeight * hScale, (maxWidth - minWidth) * wScale, (maxHeight - minHeight) * hScale)
+  const imgCtx = imgCanvas.getContext('2d')
+  imgCtx.drawImage(img, 0, 0, width * wScale, height * hScale)
+  try {
+    const imgData = imgCtx.getImageData(minWidth, minHeight, maxWidth - minWidth, maxHeight - minHeight)
     const mosaicCanvas = document.createElement('canvas')
-    mosaicCanvas.width = (maxWidth - minWidth) * wScale
-    mosaicCanvas.height = (maxHeight - minHeight) * hScale
+    mosaicCanvas.width = maxWidth - minWidth
+    mosaicCanvas.height = maxHeight - minHeight
     const mosaicCtx = mosaicCanvas.getContext('2d')
     renderMosaic(mosaicCtx, imgData)
-    ctx.drawImage(mosaicCanvas, minWidth * wScale, minHeight * hScale)
+    if (!isSave) {
+      ctx.scale(1 / wScale, 1 / hScale)
+      ctx.drawImage(mosaicCanvas, 0, 0)
+    } else {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(mosaicCanvas, minWidth, minHeight)
+    }
+    ctx.save()
+  } catch (e) {
+    return
   }
 }
 
