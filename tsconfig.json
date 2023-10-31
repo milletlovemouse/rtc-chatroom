@@ -9,6 +9,7 @@
     "baseUrl": ".",
     "declaration": false,
     "types": ["vite/client"],
+    "lib": ["DOM", "ESNext"], 
     "paths": {
       "/@/*": ["src/*"],
       "/#/*": ["types/*"],

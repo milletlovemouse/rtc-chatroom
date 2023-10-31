@@ -1,10 +1,10 @@
 type Status = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'ERROR'
 
-export default function useWebWorkerFn<T extends (...args: any[]) => any>(fn: T, options: {
+export default function useWebWorkerFn<T extends (...args: any[]) => any>(fn: T, options?: {
   dependencies?: string[],
   fnDependencies?: Record<string, Function>
 }) {
-  const { dependencies = [], fnDependencies = {} } = options
+  const { dependencies = [], fnDependencies = {} } = options || {}
   let workerStatus: Status = 'PENDING'
   let worker: Worker & { _url?: string }
   let promise: { reject?: (result: ReturnType<T> | ErrorEvent) => void;resolve?: (result: ReturnType<T>) => void } = {}

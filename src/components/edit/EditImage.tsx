@@ -1,13 +1,15 @@
 import { defineComponent, createApp, PropType, ref, App, onUnmounted, watch, nextTick, onMounted, computed } from "vue";
 import { SaveOutlined, ScissorOutlined, CloseOutlined, RiseOutlined, ExpandOutlined, BorderOutlined } from "@ant-design/icons-vue";
+import { AutoAwesomeMosaicSharp } from "@vicons/material";
 import { Edit32Regular } from "@vicons/fluent";
 import { PenFountain } from "@vicons/carbon";
-import { getPrimitiveImage } from "./utils";
+import draw, { getPrimitiveImage } from "./utils";
 import style from "./EditImage.module.scss"
 import { base64ToFile } from "/@/utils/fileUtils";
 import useResizeObserver from "/@/hooks/useResizeObserver";
 import { colorToHalfTransparent } from "/@/utils/colorUtils";
 import { onSuccess, onWarning } from "/@/utils/WebRTC/message";
+import deepcopy from "deepcopy";
 
 export type Img = {
   file: File,
@@ -323,29 +325,26 @@ export const EditImage = defineComponent({
     observerImage()
 
     // 画笔类型
-    type GraphState = 'pencil' | 'markerpen' | 'polyline' | 'rect'
+    type GraphState = 'pencil' | 'markerpen' | 'polyline' | 'rect' | 'mosaic'
     const graphState = ref<GraphState>(null)
 
     type LineInfo = {
       type: GraphState;
-      color: string;
+      lineColor: string;
       lineWidth: number;
       pointList: Array<[number, number]>
     }
     const canvasInfo = ref<{
       pointerEvents: 'none' | 'auto';
-      // 画笔线段数据
-      line?: {
-        list: Array<LineInfo>
-      }
+      // 图形打点数据
+      graphList?: Array<LineInfo>
     }>({
       pointerEvents: 'auto',
     })
-    const canvasInfoListKey = ['line']
     const lineColor = ref<string>('#FF0000')
     const lineWidth = ref<number>(2)
     const resetCanvasInfo = () => {
-      canvasInfoListKey.forEach(key => delete canvasInfo.value[key])
+      delete canvasInfo.value.graphList
     }
 
     // 折线交互状态
@@ -365,71 +364,122 @@ export const EditImage = defineComponent({
       document.removeEventListener('mouseup', drawMouse)
     })
 
+    // 'pencil' | 'markerpen' | 'rect' mousedown 事件
+    const pencilDown = (e: MouseEvent, list: Array<LineInfo>) => {
+      const { offsetX, offsetY } = e
+      list.push({
+        type: graphState.value,
+        lineColor: lineColor.value,
+        lineWidth: lineWidth.value,
+        pointList: [[offsetX, offsetY]]
+      })
+      canvasInfo.value.graphList = list
+      image.value.addEventListener('mousemove', drawMouse)
+      document.addEventListener('mouseup', drawMouse)
+    }
+    const markerpenDown = pencilDown
+    const rectDown = pencilDown
+    const mosaicDown = rectDown
+
+    // 'polyline' mousedown 事件
+    const polylineDown = (e: MouseEvent, list: Array<LineInfo>) => {
+      const { offsetX, offsetY } = e
+      polylineStateRef.value.down = true
+      if (polylineStateRef.value.begin) {
+        list.push({
+          type: graphState.value,
+          lineColor: lineColor.value,
+          lineWidth: lineWidth.value,
+          pointList: [[offsetX, offsetY], [offsetX, offsetY]]
+        })
+      } else {
+        const pointList = list.at(-1).pointList
+        pointList.push([offsetX, offsetY])
+      }
+      canvasInfo.value.graphList = list
+      if (polylineStateRef.value.begin) {
+        image.value.addEventListener('mousemove', drawMouse)
+        document.addEventListener('mouseup', drawMouse)
+      }
+    }
+
+    // 'pencil' mousemove 事件
+    const pencilMove = (e: MouseEvent, list: Array<LineInfo>) => {
+      const { offsetX, offsetY } = e
+      const lineInfo = list.at(-1)
+      lineInfo.pointList.push([offsetX, offsetY])
+    }
+
+    // 'markerpen' | 'rect' mousemove 事件
+    const markerpenMove = (e: MouseEvent, list: Array<LineInfo>) => {
+      const { offsetX, offsetY } = e
+      const lineInfo = list.at(-1)
+      lineInfo.pointList[1] = [offsetX, offsetY]
+    }
+    const rectMove = markerpenMove
+    const mosaicMove = rectMove
+
+    // 'polyline' mousemove 事件
+    const polylineMove = (e: MouseEvent, list: Array<LineInfo>) => {
+      const { offsetX, offsetY } = e
+      const lineInfo = list.at(-1)
+      const point = lineInfo.pointList.at(-1)
+      point[0] = offsetX
+      point[1] = offsetY
+      if (polylineStateRef.value.down) {
+        polylineStateRef.value.move = true
+      }
+    }
+
+    // 'pencil' | 'markerpen' | 'rect' mouseup 事件
+    const pencilUp = () => {
+      image.value.removeEventListener('mousemove', drawMouse)
+      document.removeEventListener('mouseup', drawMouse)
+    }
+    const markerpenUp = pencilUp
+    const rectUp = pencilUp
+    const mosaicUp = rectUp
+
+    // 'polyline' mouseup 事件
+    const polylineUp = () => {
+      if (graphState.value === 'polyline') {
+        polylineStateRef.value.begin = polylineStateRef.value.move
+        polylineStateRef.value.down = false
+        polylineStateRef.value.move = false
+      }
+      if (polylineStateRef.value.begin) {
+        image.value.removeEventListener('mousemove', drawMouse)
+        document.removeEventListener('mouseup', drawMouse)
+      }
+    }
+    const mouseHandleMap = {
+      mousedown: {
+        pencil: pencilDown,
+        markerpen: markerpenDown,
+        polyline: polylineDown,
+        rect: rectDown,
+        mosaic: mosaicDown,
+      },
+      mousemove: {
+        pencil: pencilMove,
+        markerpen: markerpenMove,
+        polyline: polylineMove,
+        rect: rectMove,
+        mosaic: mosaicMove,
+      },
+      mouseup: {
+        pencil: pencilUp,
+        markerpen: markerpenUp,
+        polyline: polylineUp,
+        rect: rectUp,
+        mosaic: mosaicUp,
+      }
+    }
+
     function drawMouse(e: MouseEvent) {
       if (e.target !== image.value) return
-      const list = canvasInfo.value.line?.list || []
-      const { offsetX, offsetY } = e
-      switch(e.type) {
-        case 'mousedown':
-          if (graphState.value === 'polyline') {
-            polylineStateRef.value.down = true
-            if (polylineStateRef.value.begin) {
-              list.push({
-                type: graphState.value,
-                color: lineColor.value,
-                lineWidth: lineWidth.value,
-                pointList: [[offsetX, offsetY], [offsetX, offsetY]]
-              })
-            } else {
-              const pointList = list.at(-1).pointList
-              pointList.push([offsetX, offsetY])
-            }
-          } else {
-            list.push({
-              type: graphState.value,
-              color: lineColor.value,
-              lineWidth: lineWidth.value,
-              pointList: [[offsetX, offsetY]]
-            })
-          }
-          canvasInfo.value.line = { list }
-          if (polylineStateRef.value.begin) {
-            image.value.addEventListener('mousemove', drawMouse)
-            document.addEventListener('mouseup', drawMouse)
-          }
-          break
-        case 'mousemove':
-        case 'mouseup':
-          const lineInfo = list.at(-1)
-          if (graphState.value === 'polyline') {
-            const point = lineInfo.pointList.at(-1)
-            point[0] = offsetX
-            point[1] = offsetY
-          } else if (graphState.value === 'markerpen' || graphState.value === 'rect') {
-            lineInfo.pointList[1] = [offsetX, offsetY]
-          } else {
-            lineInfo.pointList.push([offsetX, offsetY])
-          }
-
-          if (e.type === 'mousemove') {
-            if (graphState.value === 'polyline' && polylineStateRef.value.down) {
-              polylineStateRef.value.move = true
-            }
-          } else if (e.type === 'mouseup') {
-            if (graphState.value === 'polyline') {
-              polylineStateRef.value.begin = polylineStateRef.value.move
-              polylineStateRef.value.down = false
-              polylineStateRef.value.move = false
-            }
-
-            if (polylineStateRef.value.begin) {
-              image.value.removeEventListener('mousemove', drawMouse)
-              document.removeEventListener('mouseup', drawMouse)
-            }
-          }
-          break
-        default: break
-      }
+      const list = canvasInfo.value.graphList || []
+      mouseHandleMap[e.type][graphState.value](e, list)
     }
 
     const graphStateToggle = (e: Event, options: {
@@ -460,7 +510,7 @@ export const EditImage = defineComponent({
 
     const save = async (e: Event) => {
       e.stopPropagation()
-      if (!canvasInfoListKey.find(key => !!canvasInfo.value[key]) && !region.value) {
+      if (!canvasInfo.value.graphList && !region.value) {
         onWarning('无任何操作！')
         return
       }
@@ -479,15 +529,8 @@ export const EditImage = defineComponent({
       canvas.height = canvasHeight
       ctx.drawImage(primitiveImage, 0, 0, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
 
-      canvasInfoListKey.forEach(key => {
-        const data = canvasInfo.value[key]
-        if (!data) return
-        switch (key) {
-          case 'line':
-            data.list.forEach((list: LineInfo) => setCanvas(canvas, list, scaleInfo))
-          default: break
-        }
-      })
+      if (canvasInfo.value.graphList)
+        canvasInfo.value.graphList.forEach((list: LineInfo) => setCanvas(canvas, list, scaleInfo))
 
       // 裁剪
       if (region.value) {
@@ -511,6 +554,7 @@ export const EditImage = defineComponent({
       }
       props.save(newImg, img.value)
       img.value = newImg
+      lineInfoMap = {}
       cutState.value = false
       graphState.value = null
       resetCanvasInfo()
@@ -614,54 +658,47 @@ export const EditImage = defineComponent({
       document.removeEventListener('mouseup', drawMouse)
     })
 
+    // 已经渲染的数据
+    let lineInfoMap: Record<string, LineInfo> = {}
     /**
      * @param canvas 
      * @param lineInfo 
      * @param scaleInfo // 与原图的缩放比例，保存时此参数才最需要
      * @returns 
      */
-    function setCanvas(canvas: any, lineInfo: LineInfo, scaleInfo?: {
+    function setCanvas(canvas: HTMLCanvasElement, lineInfo: LineInfo & {key?: string}, scaleInfo?: {
       wScale: number,
       hScale: number
     }) {
       if (!canvas) return
-      const { wScale, hScale } = scaleInfo || {}
-      const [minWidth, minHeight, maxWidth, maxHeight] = lineInfo.pointList.reduce((a, b) => {
-        return [
-          Math.min(a[0], b[0]),
-          Math.min(a[1], b[1]),
-          Math.max(a[2], b[0]),
-          Math.max(a[3], b[1])
-        ]
-      }, [Infinity, Infinity, 0, 0])
-      if (!scaleInfo) {
-        canvas.width = maxWidth - minWidth + lineInfo.lineWidth
-        canvas.height = maxHeight - minHeight + lineInfo.lineWidth
-        canvas.style.left = minWidth - lineInfo.lineWidth / 2 + 'px'
-        canvas.style.top = minHeight - lineInfo.lineWidth / 2 + 'px'
+      const key = lineInfo.key
+      if (key) {
+        // 已经渲染的数据不再渲染
+        if (lineInfoMap[key] && JSON.stringify(lineInfoMap[key]) === JSON.stringify(lineInfo)) {
+          return
+        } else {
+          // 数据更新重新保存
+          lineInfoMap[key] = deepcopy(lineInfo)
+        }
       }
-      const ctx = canvas.getContext('2d')
-      ctx.strokeStyle = lineInfo.color
-      ctx.lineWidth = lineInfo.lineWidth
-      ctx.beginPath()
+      
+      const { lineColor, lineWidth, pointList } = lineInfo
+      const option = {
+        lineColor,
+        lineWidth,
+        pointList,
+        scaleInfo
+      }
       
       if (lineInfo.type === 'rect') {
-        if (!scaleInfo) {
-          ctx.strokeRect(lineInfo.lineWidth / 2, lineInfo.lineWidth / 2, maxWidth - minWidth, maxHeight - minHeight);
-        } else {
-          ctx.strokeRect(minWidth * wScale, minHeight * hScale, (maxWidth - minWidth) * wScale, (maxHeight - minHeight) * hScale);
-        }
-      } else {
-        ctx.lineCap = 'round'; // 线段端点为圆角
-        ctx.lineJoin = 'round'; // 线段交汇处为圆角
-        lineInfo.pointList.forEach((point) => {
-          if (!scaleInfo) {
-            ctx.lineTo(point[0] - minWidth + lineInfo.lineWidth / 2, point[1] - minHeight + lineInfo.lineWidth / 2)
-          } else {
-            ctx.lineTo(point[0] * wScale, point[1] * hScale)
-          }
+        draw.drawRect(canvas, option)
+      } else if (lineInfo.type === 'mosaic') {
+        draw.drawMosaic(canvas, {
+          ...option,
+          img: image.value
         })
-        ctx.stroke()
+      } else {
+        draw.drawLine(canvas, option)
       }
     }
     return () => (
@@ -679,12 +716,12 @@ export const EditImage = defineComponent({
             alt={img.value.file.name}
           />
           {
-            (canvasInfo.value.line?.list || []).map((lineInfo, index) => {
+            (canvasInfo.value.graphList || []).map((lineInfo, index) => {
               return (
                 <canvas
                   class="canvas"
-                  ref={(e) => setCanvas(e, lineInfo)}
-                  key={'line-' + lineInfo.type + index}
+                  ref={(e) => setCanvas(e as HTMLCanvasElement, {...lineInfo, key: `canvas-${lineInfo.type}-${index}`})}
+                  key={`canvas-${lineInfo.type}-${index}`}
                   style={{pointerEvents: canvasInfo.value.pointerEvents}}>
                 </canvas>
               )
@@ -761,6 +798,22 @@ export const EditImage = defineComponent({
                 })}
               >
                 <PenFountain />
+              </span>
+              <span
+                class={{
+                  anticon: true,
+                  xicon: true,
+                  active: graphState.value === 'mosaic'
+                }}
+                title="马赛克"
+                tabindex="-1"
+                onClick={(e) => graphStateToggle(e, {
+                  lineWidth: 0,
+                  lineColor: '#7a7a7a',
+                  state: 'mosaic'
+                })}
+              >
+                <AutoAwesomeMosaicSharp />
               </span>
               <ExpandOutlined class={{active: cutState.value}} title="裁剪" onClick={cut} />
               {/* <ScissorOutlined class={{active: cutState.value}} title="裁剪" onClick={cut} /> */}
