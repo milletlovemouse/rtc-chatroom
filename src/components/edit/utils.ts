@@ -79,7 +79,7 @@ export function drawRect(canvas: HTMLCanvasElement, options: Options) {
   ctx.save()
 }
 
-export function renderMosaic(ctx: CanvasRenderingContext2D, imgData: ImageData) {
+export function createMosaic(ctx: CanvasRenderingContext2D, imgData: ImageData) {
   const { data, width, height } = imgData
   const block = 4 * 5
   for (let i = 0; i < width; i += block) {
@@ -123,7 +123,7 @@ export function drawMosaic(canvas: HTMLCanvasElement, options: Merge<Options, {i
     mosaicCanvas.width = maxWidth - minWidth
     mosaicCanvas.height = maxHeight - minHeight
     const mosaicCtx = mosaicCanvas.getContext('2d')
-    renderMosaic(mosaicCtx, imgData)
+    createMosaic(mosaicCtx, imgData)
     if (!isSave) {
       ctx.scale(1 / wScale, 1 / hScale)
       ctx.drawImage(mosaicCanvas, 0, 0)

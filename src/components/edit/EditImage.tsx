@@ -1,5 +1,6 @@
 import { defineComponent, createApp, PropType, ref, App, onUnmounted, watch, nextTick, onMounted, computed } from "vue";
 import { SaveOutlined, ScissorOutlined, CloseOutlined, RiseOutlined, ExpandOutlined, BorderOutlined } from "@ant-design/icons-vue";
+import { IosRedo, IosUndo } from "@vicons/ionicons4"
 import { AutoAwesomeMosaicSharp } from "@vicons/material";
 import { Edit32Regular } from "@vicons/fluent";
 import { PenFountain } from "@vicons/carbon";
@@ -62,6 +63,7 @@ export const EditImage = defineComponent({
     const bottomEl = ref<HTMLElement>(null)
     const leftEl = ref<HTMLElement>(null)
     const rightEl = ref<HTMLElement>(null)
+    const inputColor = ref<HTMLInputElement>(null)
     const cursors = ['auto', 'nwse-resize', 'nesw-resize', 'ew-resize', 'ns-resize']
     const cutStyle = {
       left: '0px',
@@ -335,13 +337,16 @@ export const EditImage = defineComponent({
       pointList: Array<[number, number]>
     }
     const canvasInfo = ref<{
+      // css属性，元素不会成为事件的target
       pointerEvents: 'none' | 'auto';
       // 图形打点数据
       graphList?: Array<LineInfo>
     }>({
       pointerEvents: 'auto',
     })
+    let redoGraphList: Array<LineInfo> = []
     const lineColor = ref<string>('#FF0000')
+    const lineColorRef = computed(() => graphState.value === 'markerpen' ? colorToHalfTransparent(lineColor.value, 0.4) : lineColor.value)
     const lineWidth = ref<number>(2)
     const resetCanvasInfo = () => {
       delete canvasInfo.value.graphList
@@ -369,7 +374,7 @@ export const EditImage = defineComponent({
       const { offsetX, offsetY } = e
       list.push({
         type: graphState.value,
-        lineColor: lineColor.value,
+        lineColor: lineColorRef.value,
         lineWidth: lineWidth.value,
         pointList: [[offsetX, offsetY]]
       })
@@ -388,7 +393,7 @@ export const EditImage = defineComponent({
       if (polylineStateRef.value.begin) {
         list.push({
           type: graphState.value,
-          lineColor: lineColor.value,
+          lineColor: lineColorRef.value,
           lineWidth: lineWidth.value,
           pointList: [[offsetX, offsetY], [offsetX, offsetY]]
         })
@@ -480,16 +485,17 @@ export const EditImage = defineComponent({
       if (e.target !== image.value) return
       const list = canvasInfo.value.graphList || []
       mouseHandleMap[e.type][graphState.value](e, list)
+      if (e.type === 'mousedown') {
+        redoGraphList = []
+      }
     }
 
     const graphStateToggle = (e: Event, options: {
-      lineColor: string,
       lineWidth: number,
       state: GraphState
     }) => {
       e.stopPropagation()
       lineWidth.value = options.lineWidth
-      lineColor.value = options.lineColor
       graphState.value = graphState.value === options.state ? null : options.state
       cutState.value = false
       reset()
@@ -602,6 +608,30 @@ export const EditImage = defineComponent({
       }
     }
 
+    const undo = () => {
+      if (!canvasInfo.value.graphList?.length){
+        return
+      }
+      const lineInfo = canvasInfo.value.graphList.pop()
+      redoGraphList.push(lineInfo)
+      const key = `canvas-${lineInfo.type}-${canvasInfo.value.graphList.length}`
+      delete lineInfoMap[key]
+    }
+
+    const redo = () => {
+      if (!redoGraphList.length) {
+        return
+      }
+      const lineInfo = redoGraphList.pop()
+      canvasInfo.value.graphList.push(lineInfo)      
+    }
+
+    const lineWidthResize = (e: WheelEvent) => {
+      if (!graphState.value) return
+      const value = e.deltaY > 0 ? 1 : -1
+      lineWidth.value = Math.max(1, Math.min(16, lineWidth.value + value))
+    }
+
     const showToolBar = ref(!props.from)
     const from = computed(() => {
       if (props.from) {
@@ -650,6 +680,7 @@ export const EditImage = defineComponent({
           showToolBar.value = true
         }
       }
+      document.addEventListener('wheel', lineWidthResize)
     })
 
     onUnmounted(() => {
@@ -659,6 +690,7 @@ export const EditImage = defineComponent({
       document.removeEventListener('mousemove', updateCutInfo)
       document.removeEventListener('mousemove', updateRegion)
       document.removeEventListener('mouseup', drawMouse)
+      document.removeEventListener('wheel', lineWidthResize)
     })
 
     // 已经渲染的数据
@@ -761,12 +793,28 @@ export const EditImage = defineComponent({
             : null }
           { showToolBar.value ?
             <div class="toolbar" onMousedown={(e) => e.stopPropagation()}>
+              <span
+                title={`${lineWidth.value}`}
+                class="anticon edit-style"
+                onClick={() => inputColor.value.click()}
+              >
+                <span class="line-width">
+                  <span
+                    class="point"
+                    style={{
+                      background: lineColorRef.value,
+                      width: lineWidth.value + 'px',
+                      height: lineWidth.value + 'px'
+                    }}
+                  ></span>
+                </span>
+                <input type="color" ref={inputColor} v-model={lineColor.value} />
+              </span>
               <BorderOutlined
                 class={{active: graphState.value === 'rect'}}
                 title="矩形"
                 onClick={(e) => graphStateToggle(e, {
                   lineWidth: 2,
-                  lineColor: '#FF0000',
                   state: 'rect'
                 })}
               />
@@ -775,7 +823,6 @@ export const EditImage = defineComponent({
                 title="折线"
                 onClick={(e) => graphStateToggle(e, {
                   lineWidth: 5,
-                  lineColor: '#FF0000',
                   state: 'polyline'
                 })}
               />
@@ -789,7 +836,6 @@ export const EditImage = defineComponent({
                 tabindex="-1"
                 onClick={(e) => graphStateToggle(e, {
                   lineWidth: 2,
-                  lineColor: '#FF0000',
                   state: 'pencil'
                 })}
               >
@@ -805,7 +851,6 @@ export const EditImage = defineComponent({
                 tabindex="-1"
                 onClick={(e) => graphStateToggle(e, {
                   lineWidth: 15,
-                  lineColor: colorToHalfTransparent('#FF0000', 0.4),
                   state: 'markerpen'
                 })}
               >
@@ -821,7 +866,6 @@ export const EditImage = defineComponent({
                 tabindex="-1"
                 onClick={(e) => graphStateToggle(e, {
                   lineWidth: 0,
-                  lineColor: '#7a7a7a',
                   state: 'mosaic'
                 })}
               >
@@ -829,6 +873,22 @@ export const EditImage = defineComponent({
               </span>
               <ExpandOutlined class={{active: cutState.value}} title="裁剪" onClick={cut} />
               {/* <ScissorOutlined class={{active: cutState.value}} title="裁剪" onClick={cut} /> */}
+              <span
+                class="anticon xicon"
+                title="撤销"
+                tabindex="-1"
+                onClick={undo}
+              >
+                <IosUndo />
+              </span>
+              <span
+                class="anticon xicon"
+                title="重做"
+                tabindex="-1"
+                onClick={redo}
+              >
+                <IosRedo />
+              </span>
               <CloseOutlined title="退出编辑" onClick={close} />
               <SaveOutlined title="保存" onClick={save} />
             </div> : null }

@@ -109,8 +109,8 @@
         white-space:nowrap;
         .anticon {
           padding: 10px;
-          &.active {
-            background: #3a7ceb;
+          &.active, &:active {
+            background: #3a7ceb !important;
             color: #fff;
           }
           &:not(.active):hover {
@@ -120,6 +120,26 @@
         .xicon {
           width: auto;
           height: auto;
+        }
+        .edit-style {
+          .line-width {
+            width: 1em;
+            height: 1em;
+            .point {
+              position: absolute;
+              top: 50%;
+              transform: translate(-50%, -50%);
+              display: inline-block;
+              border-radius: 50%
+            }
+          }
+          input[type=color] {
+            width: 0px;
+            height: 0px;
+            padding: 0;
+            border: none;
+            opacity: 0;
+          }
         }
       }
     }
