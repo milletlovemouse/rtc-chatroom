@@ -24,6 +24,7 @@ declare module 'vue' {
     ASpace: typeof import('ant-design-vue/es')['Space']
     Chat: typeof import('./src/components/chat/Chat.vue')['default']
     DeviceSelect: typeof import('./src/components/chatroom/DeviceSelect.vue')['default']
+    Emoji: typeof import('./src/components/chat/Emoji.vue')['default']
     FileList: typeof import('./src/components/FileList.vue')['default']
     Join: typeof import('./src/components/chatroom/Join.vue')['default']
     Layout: typeof import('./src/components/Layout.vue')['default']
@@ -32,5 +33,6 @@ declare module 'vue' {
     MessageList: typeof import('./src/components/chat/MessageList.vue')['default']
     Scrollbar: typeof import('./src/components/scrollbar.vue')['default']
     UserIcon: typeof import('./src/components/UserIcon.vue')['default']
+    VideoRecorder: typeof import('./src/components/VideoRecorder.vue')['default']
   }
 }

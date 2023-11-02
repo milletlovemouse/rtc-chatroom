@@ -5,7 +5,8 @@
         <Join :stream="localStream" @join="join" />
       </template>
       <template v-else>
-        <MemberList :memberList="memberList" :mainStream="displayStream" />
+        <MemberList ref="memberListRef" :memberList="memberList" :mainStream="displayStream" />
+        <VideoRecorder :el="memberListRef?.el" :track="audioTracks" />
       </template>
       <div class="rtc-tool">
         <device-select
@@ -25,14 +26,16 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { nextTick, onMounted, reactive, ref, shallowRef, watchEffect, watch, h, onUnmounted, computed, Ref, shallowReactive, onBeforeUnmount, provide } from 'vue';
+import { onMounted, ref, computed, onBeforeUnmount, provide } from 'vue';
 import RTCClient, { ConnectorInfoList } from '/@/utils/WebRTC/rtc-client';
 import { onError } from '/@/utils/WebRTC/message';
 import DeviceSelect, { ModelValue } from '/@/components/chatroom/DeviceSelect.vue';
 import MemberList from '/@/components/chatroom/MemberList.vue';
 import Chat from '/@/components/chat/Chat.vue';
 import Join from '/@/components/chatroom/Join.vue';
+import VideoRecorder from '/@/components/VideoRecorder.vue';
 
+const memberListRef = ref(null)
 const isInRoom = ref<boolean>(false)
 // 本地流
 let localStream = ref<MediaStream>(null)
@@ -91,6 +94,13 @@ const memberList = computed(() => {
     remoteStream: localStream.value,
   }, ...connectorInfoList.value.filter(connectorInfo => connectorInfo.streamType === 'user')]
 })
+
+const audioTracks = computed(() => memberList.value.map((member) => {
+  if (!member.remoteStream) {
+    return null
+  }
+  return member.remoteStream.getAudioTracks()
+}).flat())
 
 let rtc = new RTCClient({
   configuration: {

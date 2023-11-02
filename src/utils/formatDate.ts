@@ -96,3 +96,28 @@ function fillZero(dateInfo: DateInfo): (number | string)[] {
    return date < 10 ? "0" + date : date;
  });
 }
+
+/**
+ * 将毫秒时间转为天:时:分:秒的格式
+ */
+export function formatTime(time: number): string {
+  const dateTime = new Date(time);
+  const dateInfo = getDateInfo(dateTime);
+  dateInfo.fullYear -= 1970
+  dateInfo.month -= 1;
+  dateInfo.date -= 1;
+  dateInfo.hours -= 8;
+  let [month, date, hours, minutes, seconds] = fillZero(dateInfo);
+  
+  if (dateInfo.fullYear > 0) {
+    return `${dateInfo.fullYear}年${month}月${date}天 ${hours}:${minutes}:${seconds}`;
+  } else if (month > 0) {
+    return `${month}月${date}天 ${hours}:${minutes}:${seconds}`;
+  } else if (date > 0) {
+    return `${date}天 ${hours}:${minutes}:${seconds}`
+  } else if (hours > 0) {
+    return `${hours}:${minutes}:${seconds}`
+  } else {
+    return `${minutes}:${seconds}`
+  }
+}

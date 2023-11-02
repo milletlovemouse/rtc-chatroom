@@ -118,6 +118,10 @@ export function fileToBlob(file: File, type?: string): Promise<Blob> {
   });
 }
 
+export function blobToFile(blob: Blob, fileName: string): File {
+  return new File([blob], fileName, { type: blob.type});
+}
+
 export function saveFile(file: File) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(file);

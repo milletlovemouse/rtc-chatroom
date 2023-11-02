@@ -1,5 +1,5 @@
 <template lang="">
-  <div class="member">
+  <div ref="root" class="member">
     <div class="member-list">
       <div class="video-box" v-for="connectorInfo in memberList" :key="connectorInfo.connectorId">
         <video
@@ -39,6 +39,13 @@ const props = defineProps<{
   },
 }>()
 
+const root = ref<HTMLElement>(null)
+
+defineExpose({
+  get el(){
+    return root.value
+  }
+})
 // 媒体元素
 const videoList = ref<HTMLVideoElement[]>([])
 const audioList = ref<HTMLAudioElement[]>([])
@@ -131,6 +138,7 @@ const background = computed(() => mainStream.value ? '#222' : 'transparent')
   $margin: 24px;
   $padding: 5px;
   $height: calc(var(--main-height) - 32px - $margin * 3);
+  margin: 0 0 $margin 0;
   .member-list {
     display: v-bind(display);
     grid-template-columns: repeat(v-bind(columns), v-bind(cloWidth));
@@ -138,7 +146,6 @@ const background = computed(() => mainStream.value ? '#222' : 'transparent')
     float: left;
     width: v-bind(width);
     height: $height;
-    margin: 0 0 $margin 0;
     background: v-bind(background);
     border-radius: 6px;
     overflow-y: auto;

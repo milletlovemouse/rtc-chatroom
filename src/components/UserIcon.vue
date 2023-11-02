@@ -7,7 +7,7 @@
 import { UserOutlined } from '@ant-design/icons-vue';
 
 </script>
-<style>
+<style lang="scss">
 .user-icon {
   border: 2px solid #444;
   border-radius: 4px;
@@ -20,6 +20,7 @@ import { UserOutlined } from '@ant-design/icons-vue';
   font-size: 35em;
   color: #111;
   overflow: hidden;
+  aspect-ratio: 1/0.75;
   .anticon, .anticon svg {
     width: inherit;
     height: inherit;
