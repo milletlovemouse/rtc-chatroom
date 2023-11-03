@@ -2,11 +2,13 @@
   <div class="rtc-chat" :class="{open: props.open}">
     <MessageList :message-list="messageList" />
     <div class="send-tool">
+      <Icon class="tool" size="1.75em"><EmojiSmileSlight24Regular @click="openEmoji" /></Icon>
       <Icon class="tool" size="1.75em"><ImageOutline v-select-file="selectImageConfig" /></Icon>
       <Icon class="tool" size="1.75em"><DriveFileMoveRound v-select-file="selectFileConfig" /></Icon>
     </div>
     <file-list :file-list="fileMessageList" @remove="remove" @updateImage="updateImage"/>
     <div class="send">
+      <Emoji v-model="open" @select="selectEmoji" />
       <input
         class="chat-input"
         v-model="inputValue"
@@ -28,12 +30,14 @@ import { Icon } from '@vicons/utils'
 import { ImageOutline } from "@vicons/ionicons5"
 import { LoadingOutlined } from '@ant-design/icons-vue'
 import { DriveFileMoveRound } from '@vicons/material'
+import { EmojiSmileSlight24Regular } from '@vicons/fluent'
 import { fileAndBlobToBase64, sliceFileAndBlobToBase64, sliceFileOrBlob } from '/@/utils/fileUtils';
 import RTCClient from '/@/utils/WebRTC/rtc-client';
 import { formatDate } from '/@/utils/formatDate';
 import getFileTypeImage from '/@/utils/file-type-image';
 import MessageList from '/@/components/chat/MessageList.vue';
 import FileList, { Img } from '/@/components/FileList.vue';
+import Emoji from '/@/components/chat/Emoji.vue';
 import { Message } from '/@/utils/WebRTC/rtc-client';
 import { useChatStore } from '@/store/modules/chat';
 import useWebWorkerFn from '/@/hooks/useWebWorkerFn';
@@ -192,6 +196,16 @@ async function getFileInfo(file: File) {
   }
 }
 
+const open = ref(false)
+function openEmoji(e: Event) {
+  e.stopPropagation()
+  open.value = !open.value
+}
+
+function selectEmoji(emoji: string) {
+  inputValue.value += emoji
+}
+
 function clearMessage() {
   messageList = reactive([])
   fileMessageList.splice(0)
@@ -230,12 +244,13 @@ defineExpose({
     }
   }
   .send {
+    position: relative;
     display: flex;
     justify-content: space-around;
     align-items: center;
     width: 100%;
     padding: 5px 10px 20px 10px;
-    border-top: 2px ;
+    border-top: 2px;
     .chat-input {
       width: 80%;
       padding: 5px 10px;
