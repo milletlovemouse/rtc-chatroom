@@ -1,18 +1,13 @@
 import { blobToFile, saveFile } from "@/utils/fileUtils";
 import html2canvas from "@/utils/Canvas/html2canvas";
 
-function useVideoRecorder(el: HTMLElement, options?: {
+type Options = {
   background?: string;
-  track?: MediaStreamTrack[];
-}) {
-  return videoRecorder(el, options)
+  audioTracks?: MediaStreamTrack[];
 }
 
-function videoRecorder(el: HTMLElement, options?: {
-  background?: string;
-  track?: MediaStreamTrack[];
-}) {
-  const { background, track } = options || {}
+function useVideoRecorder(el: HTMLElement, options?: Options) {
+  const { background, audioTracks } = options || {}
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   let animationFrameId = null
@@ -32,8 +27,8 @@ function videoRecorder(el: HTMLElement, options?: {
   })
 
   const stream = canvas.captureStream(25);
-  if (track) {
-    track.forEach(t => stream.addTrack(t))
+  if (audioTracks) {
+    audioTracks.forEach(t => stream.addTrack(t))
   }
   // const recorderOptions = {
   //   audioBitsPerSecond : 128000,

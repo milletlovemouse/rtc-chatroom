@@ -17,12 +17,12 @@ import { formatTime } from '@/utils/formatDate';
 import useVideoRecorder from '@/hooks/useVideoRecorder';
 type Props = {
   el?: HTMLElement,
-  track?: MediaStreamTrack[],
+  audioTracks?: MediaStreamTrack[],
 }
 
 const props = withDefaults(defineProps<Props>(), {
   el: null,
-  track: () => [],
+  audioTracks: () => [],
 })
 const root = shallowRef<HTMLElement>(null)
 const state = ref(false)
@@ -37,7 +37,7 @@ const start = () => {
   timeStart()
   recorder.value = useVideoRecorder(props.el, {
     background: '#2b2b2b',
-    track: props.track,
+    audioTracks: props.audioTracks,
   })
 }
 

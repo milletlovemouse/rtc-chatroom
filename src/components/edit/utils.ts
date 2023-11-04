@@ -34,9 +34,9 @@ type Options = {
 export function drawLine(canvas: HTMLCanvasElement, options: Options) {
   const { wScale, hScale, isSave } = options.scaleInfo || {}
   const { lineWidth, lineColor, pointList } = options
-  const [minWidth, minHeight, maxWidth, maxHeight] = getRectInfo(pointList)
+  const [left, top, width, height] = getRectInfo(pointList)
   if (!isSave) {
-    setCanvasSize(canvas, {minWidth, minHeight, maxWidth, maxHeight, lineWidth})
+    setCanvasSize(canvas, {left, top, width, height, lineWidth})
   }
   const ctx = canvas.getContext('2d')
   setCanvasCtxStyle(ctx, { lineWidth, lineColor })
@@ -50,19 +50,18 @@ export function drawLine(canvas: HTMLCanvasElement, options: Options) {
     ctx.scale(wScale, hScale)
     pointList.forEach((point) => ctx.lineTo(point[0], point[1]))
   } else {
-    pointList.forEach((point) => ctx.lineTo(point[0] - minWidth + lineWidth / 2, point[1] - minHeight + lineWidth / 2))
+    pointList.forEach((point) => ctx.lineTo(point[0] - left + lineWidth / 2, point[1] - top + lineWidth / 2))
   }
   
   ctx.stroke()
-  ctx.save()
 }
 
 export function drawRect(canvas: HTMLCanvasElement, options: Options) {
   const { wScale, hScale, isSave } = options.scaleInfo || {}
-  const { lineWidth, lineColor, pointList, scaleInfo } = options
-  const [minWidth, minHeight, maxWidth, maxHeight] = getRectInfo(pointList)
+  const { lineWidth, lineColor, pointList } = options
+  const [left, top, width, height] = getRectInfo(pointList)
   if (!isSave) {
-    setCanvasSize(canvas, {minWidth, minHeight, maxWidth, maxHeight, lineWidth})
+    setCanvasSize(canvas, {left, top, width, height, lineWidth})
   }
 
   const ctx = canvas.getContext('2d')  
@@ -72,11 +71,10 @@ export function drawRect(canvas: HTMLCanvasElement, options: Options) {
   if (isSave) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(wScale, hScale)
-    ctx.strokeRect(minWidth, minHeight, maxWidth - minWidth, maxHeight - minHeight);
+    ctx.strokeRect(left, top, width, height);
   } else {
-    ctx.strokeRect(lineWidth / 2, lineWidth / 2, maxWidth - minWidth, maxHeight - minHeight);
+    ctx.strokeRect(lineWidth / 2, lineWidth / 2, width, height);
   }
-  ctx.save()
 }
 
 export function createMosaic(ctx: CanvasRenderingContext2D, imgData: ImageData) {
@@ -95,19 +93,19 @@ export function createMosaic(ctx: CanvasRenderingContext2D, imgData: ImageData) 
 export function drawMosaic(canvas: HTMLCanvasElement, options: Merge<Options, {img: HTMLImageElement}>) {
   const { wScale = 1, hScale = 1, isSave } = options.scaleInfo || {}
   const { pointList, img } = options
-  let [minWidth, minHeight, maxWidth, maxHeight] = getRectInfo(pointList)
+  let [left, top, canvasWidth, canvasHeight] = getRectInfo(pointList)
 
   if (!isSave) {
-    canvas.width = maxWidth - minWidth
-    canvas.height = maxHeight - minHeight
-    canvas.style.left = minWidth + 'px'
-    canvas.style.top = minHeight + 'px'
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
+    canvas.style.left = left + 'px'
+    canvas.style.top = top + 'px'
   }
   
-  minWidth *= wScale
-  minHeight *= hScale
-  maxWidth *= wScale
-  maxHeight *= hScale
+  left *= wScale
+  top *= hScale
+  canvasWidth *= wScale
+  canvasHeight *= hScale
 
   const ctx = canvas.getContext('2d')
   const { width, height } = img.getBoundingClientRect()
@@ -118,10 +116,10 @@ export function drawMosaic(canvas: HTMLCanvasElement, options: Merge<Options, {i
   const imgCtx = imgCanvas.getContext('2d')
   imgCtx.drawImage(img, 0, 0, width * wScale, height * hScale)
   try {
-    const imgData = imgCtx.getImageData(minWidth, minHeight, maxWidth - minWidth, maxHeight - minHeight)
+    const imgData = imgCtx.getImageData(left, top, canvasWidth, canvasHeight)
     const mosaicCanvas = document.createElement('canvas')
-    mosaicCanvas.width = maxWidth - minWidth
-    mosaicCanvas.height = maxHeight - minHeight
+    mosaicCanvas.width = canvasWidth
+    mosaicCanvas.height = canvasHeight
     const mosaicCtx = mosaicCanvas.getContext('2d')
     createMosaic(mosaicCtx, imgData)
     if (!isSave) {
@@ -129,16 +127,25 @@ export function drawMosaic(canvas: HTMLCanvasElement, options: Merge<Options, {i
       ctx.drawImage(mosaicCanvas, 0, 0)
     } else {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(mosaicCanvas, minWidth, minHeight)
+      ctx.drawImage(mosaicCanvas, left, top)
     }
-    ctx.save()
   } catch (e) {
     return
   }
 }
 
+type Img = HTMLImageElement | HTMLVideoElement | SVGImageElement | HTMLCanvasElement
+export function cropPicture(img: Img, x: number, y: number, width: number, height: number) {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  canvas.width = width
+  canvas.height = height
+  ctx.drawImage(img, x, y, width, height, 0, 0, width, height)
+  return canvas
+}
+
 export function getRectInfo(pointList: number[][]) {
-  return pointList.reduce((a, b) => {
+  const [minX, minY, maxX, maxY] = pointList.reduce((a, b) => {
     return [
       Math.min(a[0], b[0]),
       Math.min(a[1], b[1]),
@@ -146,27 +153,23 @@ export function getRectInfo(pointList: number[][]) {
       Math.max(a[3], b[1])
     ]
   }, [Infinity, Infinity, 0, 0])
+  return [
+    minX, minY, maxX - minX, maxY - minY
+  ]
 }
 
 export function setCanvasSize(canvas: HTMLCanvasElement, options: {
   lineWidth?: number;
-  minWidth: number;
-  minHeight: number;
-  maxWidth: number;
-  maxHeight: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }) {
-  const {minWidth, minHeight, maxWidth, maxHeight, lineWidth = 0} = options
-  canvas.width = maxWidth - minWidth + lineWidth
-  canvas.height = maxHeight - minHeight + lineWidth
-  canvas.style.left = minWidth - lineWidth / 2 + 'px'
-  canvas.style.top = minHeight - lineWidth / 2 + 'px'
-  
-  return {
-    width: canvas.width,
-    height: canvas.height,
-    left: minWidth - lineWidth / 2,
-    top: minHeight - lineWidth / 2
-  }
+  const {left, top, width, height, lineWidth = 0} = options
+  canvas.width = width + lineWidth
+  canvas.height = height + lineWidth
+  canvas.style.left = left - lineWidth / 2 + 'px'
+  canvas.style.top = top - lineWidth / 2 + 'px'
 }
 
 export function setCanvasCtxStyle(ctx: CanvasRenderingContext2D, options: {

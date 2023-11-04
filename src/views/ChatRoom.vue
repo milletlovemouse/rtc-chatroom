@@ -6,7 +6,7 @@
       </template>
       <template v-else>
         <MemberList ref="memberListRef" :memberList="memberList" :mainStream="displayStream" />
-        <VideoRecorder :el="memberListRef?.el" :track="audioTracks" />
+        <VideoRecorder :el="memberListRef?.el" :audioTracks="audioTracks" />
       </template>
       <div class="rtc-tool">
         <device-select

@@ -4,7 +4,7 @@ import { IosRedo, IosUndo } from "@vicons/ionicons4"
 import { AutoAwesomeMosaicSharp } from "@vicons/material";
 import { Edit32Regular } from "@vicons/fluent";
 import { PenFountain } from "@vicons/carbon";
-import draw, { getOriginalImageRect } from "./utils";
+import draw, { cropPicture, getOriginalImageRect } from "./utils";
 import style from "./EditImage.module.scss"
 import { base64ToFile } from "/@/utils/fileUtils";
 import useResizeObserver from "/@/hooks/useResizeObserver";
@@ -544,17 +544,12 @@ export const EditImage = defineComponent({
 
       // 裁剪
       if (region.value) {
-        const cvs = document.createElement('canvas')
-        const ctx = cvs.getContext('2d')
         const { width, height } = region.value.getBoundingClientRect()
         const left = Number(cutInfo.value.left.replace('px', '')) * scaleInfo.wScale
         const top = Number(cutInfo.value.top.replace('px', '')) * scaleInfo.hScale
         const cvsWidth = width * scaleInfo.wScale
         const cvsHeight = height * scaleInfo.hScale
-        cvs.width = cvsWidth
-        cvs.height = cvsHeight
-        ctx.drawImage(canvas, left, top, cvsWidth, cvsHeight, 0, 0, cvsWidth, cvsHeight)
-        canvas = cvs
+        canvas = cropPicture(canvas, left, top, cvsWidth, cvsHeight)
       }
 
       const dataURL = canvas.toDataURL(img.value.file.type)
