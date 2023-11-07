@@ -61,7 +61,9 @@ export const audioVisible = audioVisualizer((dataArray, ctx, canvas) => {
   const max = Math.max(...dataArray);
   const av_height = max * height / 255
   ctx.fillStyle = 'rgb(255, 255, 255)';
-  ctx.fillRect(0, 0, width, height)
+  ctx.beginPath();
+  ctx.arc(width / 2, height / 2, width / 2, 0, 2 * Math.PI)
+  ctx.fill()
   ctx.lineWidth = 1
   ctx.strokeStyle = "#07c160"
   const base_x = height / 5
@@ -72,7 +74,6 @@ export const audioVisible = audioVisualizer((dataArray, ctx, canvas) => {
   }
   while(av_height > base_x * lv) {
     ctx.beginPath();
-    // ctx.arc(width / 2, height, base_y * (lv - 0.5), Math.PI / 16 * 21,  Math.PI / 16 * 27);
     ctx.arc(0, height / 2, base_x * (lv - 0.5), Math.PI / 16 * 29,  Math.PI / 16 * 3);
     ctx.stroke()
     lv++

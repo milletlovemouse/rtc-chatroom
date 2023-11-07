@@ -530,7 +530,7 @@ export const EditImage = defineComponent({
       },
     };
 
-    function drawMouse(EditImage) {
+    function drawMouse(e) {
       if (e.target !== image.value) return;
       const list = canvasInfo.value.graphList || [];
       mouseHandleMap[e.type][graphState.value](e, list);

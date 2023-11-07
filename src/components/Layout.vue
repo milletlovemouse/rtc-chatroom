@@ -36,6 +36,7 @@ import Clipboard from '@/test/Clipboard.vue';
 import ChatRoom from '@/views/ChatRoom.vue';
 import Canvas from '@/test/Canvas.vue';
 import AudioVisualizer from '@/test/AudioVisualizer.vue';
+import SpeechRecognition from '@/test/SpeechRecognition.vue';
 import {
   UserOutlined,
   MenuUnfoldOutlined,
@@ -56,6 +57,7 @@ const routerList = shallowReactive([
   { title: 'Clipboard', component: Clipboard, icon: FileTextFilled },
   { title: 'Canvas', component: Canvas, icon: PictureFilled },
   { title: 'AudioVisualizer', component: AudioVisualizer, icon: AudioOutlined },
+  { title: 'SpeechRecognition', component: SpeechRecognition, icon: AudioOutlined },
 ])
 
 const component = shallowRef<Component>(null)
