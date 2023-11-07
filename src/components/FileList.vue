@@ -29,7 +29,7 @@
 import { DeleteFilled, EditFilled } from '@ant-design/icons-vue';
 import { computed, reactive, ref } from 'vue';
 import { Merge } from '../utils/type';
-import { useEditImage } from './edit/EditImage';
+import { useEditImage } from './edit/EditImage.jsx';
 import { MenuItem, MenuList } from './menu/menu';
 import scrollbar from '@/components/scrollbar.vue';
 export type Img = {
