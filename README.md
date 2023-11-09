@@ -1,19 +1,19 @@
-## 项目介绍
-### 项目概述
-&emsp;&emsp;基于WebRTC实现的能够视频通话、共享屏幕、设备启停、发送消息的匿名视频聊天室，项目并不依赖数据库，只依赖信令服务器完成WebRTC连接与断开后重连，核心在前端部分。
+# 项目介绍
+## 项目概述
+&emsp;&emsp;基于`WebRTC`实现的`P2P`多人视频聊天室，能够多人视频通话、共享屏幕、设备切换&启停、发送消息，还支持断开重连、视频录制、图片编辑等功能，支撑`RTC`相关功能实现的代码我封装为了一个`SDK`，后面会给出此`SDK`的`API`文档，关于其他功能，例如视频录制、图片编辑等功能我封装为了相关`hook`或自定义指令。
 
-&emsp;&emsp;目前项目还比较小，只有一个单页面和几个组件，都是些业务代码，支撑功能实现的代码我封装为了一个SDK，不依赖开发框架，可以直接移植使用，项目核心就在于此，后面会给出此SDK的API文档；目前还有一些想法没有实现，还在开发当中。
+&emsp;&emsp;客户端产生的数据不经过服务器，而是直接通过`WebRTC`协议进行传输，无须担心隐私问题，服务器只负责转发`SDP`建立`WebRTC`连接，服务器可以部署在公网，客户端也可以部署在公网，这样就可以实现跨网段、跨运营商的多人视频通话。
 
 - 前端技术栈：有Vue3和React两个版本
-  - Vue3：`Vue3`、`TypeScript`、`Vite4.4`、`Socket.IO`
+  - Vue3：`Vue3`、`TypeScript`、`Vite4`、`Socket.IO`
   - React：`React18`、`TypeScript`、`Webpack5`、`Socket.IO`
 - 后端技术栈：`Express`、`Socket.IO`
 - 代码仓库：
-  - Vue3：[milletlovemouse/rtc-chatroom(github.com)](https://github.com/milletlovemouse/rtc-chatroom)
-  - React：[milletlovemouse/chatroom(github.com)](https://github.com/milletlovemouse/chatroom)
-  - Server：[milletlovemouse/chatroom-server(github.com)](https://github.com/milletlovemouse/chatroom-server)
+  - Vue3：[milletlovemouse/rtc-chatroom](https://github.com/milletlovemouse/rtc-chatroom)
+  - React：[milletlovemouse/chatroom](https://github.com/milletlovemouse/chatroom)
+  - Server：[milletlovemouse/chatroom-server](https://github.com/milletlovemouse/chatroom-server)
 
-### 项目展示
+## 项目展示
 ![image.png](https://raw.githubusercontent.com/milletlovemouse/github-file-library/main/images/chatroom_readme.png)
 
 <p align=center>
@@ -22,7 +22,7 @@
   <a target="_blank" href="https://rtcchatroom.cn/">预览体验</a>
 </p>
 
-### 启动项目
+## 启动项目
 > npm
 ```shell
 npm install
