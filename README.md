@@ -12,6 +12,7 @@
   - Vue3：[milletlovemouse/rtc-chatroom](https://github.com/milletlovemouse/rtc-chatroom)
   - React：[milletlovemouse/chatroom](https://github.com/milletlovemouse/chatroom)
   - Server：[milletlovemouse/chatroom-server](https://github.com/milletlovemouse/chatroom-server)
+  - SDK：[milletlovemouse/rtc-client](https://github.com/milletlovemouse/rtc-client)
 
 ## 项目展示
 ![image.png](https://raw.githubusercontent.com/milletlovemouse/github-file-library/main/images/chatroom_readme.png)
