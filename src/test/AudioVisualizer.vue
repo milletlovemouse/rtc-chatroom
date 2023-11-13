@@ -10,8 +10,8 @@ import { ref, onMounted, onBeforeUnmount } from "vue"
 import { audioVisible } from "@/utils/audio/audioVisualizer";
 // import audioSrc from "@/assets/Stay_tonight.wav"
 
-const canvas = ref<HTMLCanvasElement>(null)
-const audio = ref<HTMLAudioElement>(null)
+const canvas = ref<HTMLCanvasElement>()
+const audio = ref<HTMLAudioElement>()
 let close = () => {}
 
 onMounted(() => {

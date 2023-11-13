@@ -47,9 +47,9 @@ defineExpose({
   }
 })
 // 媒体元素
-const videoList = ref<HTMLVideoElement[]>([])
-const audioList = ref<HTMLAudioElement[]>([])
-const mainVideo = ref<HTMLVideoElement>(null)
+const videoList = ref<HTMLVideoElement[]>()
+const audioList = ref<HTMLAudioElement[]>()
+const mainVideo = ref<HTMLVideoElement>()
 
 const memberList = computed(() => {
   return props.memberList.map((item) => {
@@ -74,7 +74,7 @@ watch(() => mainStream.value, async () => {
 })
 
 let closes: (() => void)[] = []
-const canvas = ref<HTMLCanvasElement[]>(null)
+const canvas = ref<HTMLCanvasElement[]>()
 
 watch(() => memberList.value, async () => {
   await nextTick()

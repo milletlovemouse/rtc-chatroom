@@ -73,10 +73,10 @@ let scrollRect: ScrollRect = {
   scrollTop: 0,
 }
 
-const container = ref<HTMLElement>(null)
-const content = ref<HTMLElement>(null)
-const scrollBar = ref<HTMLElement>(null)
-const inner = ref<HTMLElement>(null)
+const container = ref<HTMLElement>()
+const content = ref<HTMLElement>()
+const scrollBar = ref<HTMLElement>()
+const inner = ref<HTMLElement>()
 
 const updateScrollBarInner: ResizeObserverCallback = ([entry]) => {
   const type = props.type

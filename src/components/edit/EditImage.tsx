@@ -56,14 +56,14 @@ export const EditImage = defineComponent({
     from: Object as PropType<CssStyle>,
   },
   setup(props) {
-    const root = ref<HTMLElement>(null)
-    const image = ref<HTMLImageElement>(null)
-    const region = ref<HTMLElement>(null)
-    const topEl = ref<HTMLElement>(null)
-    const bottomEl = ref<HTMLElement>(null)
-    const leftEl = ref<HTMLElement>(null)
-    const rightEl = ref<HTMLElement>(null)
-    const inputColor = ref<HTMLInputElement>(null)
+    const root = ref<HTMLElement>()
+    const image = ref<HTMLImageElement>()
+    const region = ref<HTMLElement>()
+    const topEl = ref<HTMLElement>()
+    const bottomEl = ref<HTMLElement>()
+    const leftEl = ref<HTMLElement>()
+    const rightEl = ref<HTMLElement>()
+    const inputColor = ref<HTMLInputElement>()
     const cursors = ['auto', 'nwse-resize', 'nesw-resize', 'ew-resize', 'ns-resize']
     const cutStyle = {
       left: '0px',
