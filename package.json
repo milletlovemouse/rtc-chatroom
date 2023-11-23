@@ -3,6 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "author": "houwx",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "rimraf dist && vue-tsc --noEmit --skipLibCheck && vite build",

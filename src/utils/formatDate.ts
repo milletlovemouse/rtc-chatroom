@@ -95,7 +95,7 @@ function fillZero(dateInfo: DateInfo) {
    const date = dateInfo[key];
    return {
     ...res,
-    key: date < 10 ? "0" + date : date as unknown as number
+    [key]: date < 10 ? "0" + date : date as unknown as number
    }
  }, {} as Record<"month" | "date" | "hours" | "minutes" | "seconds", number>);
 }
