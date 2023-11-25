@@ -899,7 +899,6 @@ export function useEditImage(img: Img, options: {
 }){
   const { save, from } = options || {}
   const root = document.createElement('div')
-  Object.keys(style).forEach(key => root.style[key] = style[key])
   let app: App
   const close = () => {
     app.unmount()

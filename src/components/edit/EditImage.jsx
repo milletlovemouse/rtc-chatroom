@@ -1005,7 +1005,6 @@ export const EditImage = defineComponent({
 export function useEditImage(img, options) {
   const { save, from } = options || {};
   const root = document.createElement("div");
-  Object.keys(style).forEach((key) => (root.style[key] = style[key]));
   let app;
   const close = () => {
     app.unmount();
