@@ -27,8 +27,20 @@ function useVideoRecorder(el: HTMLElement, options?: Options) {
   })
 
   const stream = canvas.captureStream(25);
-  if (audioTracks) {
-    audioTracks.forEach(t => stream.addTrack(t))
+  let audioContext: AudioContext | null = null
+  const audioSourceNodes: MediaStreamAudioSourceNode[] = []
+  if (audioTracks?.length) {
+    audioContext = new AudioContext()
+    const destination = audioContext.createMediaStreamDestination()
+    audioTracks
+      .filter(track => track?.kind === 'audio' && track.readyState === 'live')
+      .forEach((track) => {
+        const audioStream = new MediaStream([track])
+        const sourceNode = audioContext.createMediaStreamSource(audioStream)
+        sourceNode.connect(destination)
+        audioSourceNodes.push(sourceNode)
+      })
+    destination.stream.getAudioTracks().forEach(track => stream.addTrack(track))
   }
   // const recorderOptions = {
   //   audioBitsPerSecond : 128000,
@@ -40,6 +52,8 @@ function useVideoRecorder(el: HTMLElement, options?: Options) {
   let chunks: Blob[] = []
   recorder.onstop = function() {
     cancelAnimationFrame(animationFrameId)
+    audioSourceNodes.forEach(node => node.disconnect())
+    audioContext?.close()
     const blob = new Blob(chunks, { type: 'video/mp4' });
     saveFile(blobToFile(blob, '视频录制'))
     chunks = []
