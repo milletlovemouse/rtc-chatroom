@@ -96,52 +96,50 @@ const aspectRatio = computed<number>(() => {
   .form {
     display: flex;
     justify-content: center;
-    ::v-deep {
-      .input-box {
-        position: relative;
-        width: 240px;
-        margin: 0 5px;
-        input {
-          // color: #fff;
-          // caret-color: #fff;
-          font-size: 1em;
-          letter-spacing: 0.005em;
-          z-index: 10;
-          &:valid ~span, 
-          &:focus ~span {
-            color: #fff;
-            font-size: 1.25em;
-            transform: translateY(-35px);
-          }
-          &:valid ~i, 
-          &:focus ~i {
-            height: 32px;
-          }
-          
+    :deep(.input-box) {
+      position: relative;
+      width: 240px;
+      margin: 0 5px;
+      input {
+        // color: #fff;
+        // caret-color: #fff;
+        font-size: 1em;
+        letter-spacing: 0.005em;
+        z-index: 10;
+        &:valid ~span, 
+        &:focus ~span {
+          color: #fff;
+          font-size: 1.25em;
+          transform: translateY(-35px);
         }
-        span {
-          position: absolute;
-          top: -20px;
-          left: 0px;
-          padding: 20px 0px 10px;
-          pointer-events: none;
-          color: #8f8f8f;
-          font-size: 1em;
-          letter-spacing: 0.05em;
-          transition: 0.5s;
+        &:valid ~i, 
+        &:focus ~i {
+          height: 32px;
         }
-        i {
-          position: absolute;
-          left: 0;
-          bottom: 0;
-          width: 100%;
-          height: 2px;
-          background: #fff;
-          border-radius: 4px;
-          overflow: hidden;
-          transition: 0.5s;
-          pointer-events: none;
-        }
+        
+      }
+      span {
+        position: absolute;
+        top: -20px;
+        left: 0px;
+        padding: 20px 0px 10px;
+        pointer-events: none;
+        color: #8f8f8f;
+        font-size: 1em;
+        letter-spacing: 0.05em;
+        transition: 0.5s;
+      }
+      i {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 2px;
+        background: #fff;
+        border-radius: 4px;
+        overflow: hidden;
+        transition: 0.5s;
+        pointer-events: none;
       }
     }
     input.submit {

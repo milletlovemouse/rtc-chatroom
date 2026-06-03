@@ -33,13 +33,13 @@
     "@vicons/material": "^0.12.0",
     "@vicons/tabler": "^0.12.0",
     "@vicons/utils": "^0.1.4",
-    "@vitejs/plugin-vue": "^4.2.3",
-    "@vitejs/plugin-vue-jsx": "^3.0.2",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vitejs/plugin-vue-jsx": "^4.2.0",
     "deepcopy": "^2.1.0",
     "rimraf": "^5.0.4",
     "terser": "^5.20.0",
     "typescript": "^5.0.2",
-    "vite": "^4.4.5",
-    "vue-tsc": "^1.8.5"
+    "vite": "^5.4.21",
+    "vue-tsc": "^2.2.12"
   }
 }
